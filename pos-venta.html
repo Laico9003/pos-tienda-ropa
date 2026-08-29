@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Punto de Venta — Tienda de Ropa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #15171c;
+    --surface: #f6f2ec;
+    --surface-2: #ffffff;
+    --ink: #1d1b1f;
+    --ink-muted: #6d6a72;
+    --rose: #b8586a;
+    --rose-deep: #8f3f4d;
+    --sage: #4c6b57;
+    --sage-light: #e7ede9;
+    --line: #e3ddd2;
+    --danger: #b8465a;
+    --radius: 14px;
+  }
+  *{ box-sizing: border-box; }
+  body{
+    margin:0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app{
+    display:grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap:16px;
+    max-width: 1320px;
+    margin: 20px auto;
+    padding: 0 16px;
+  }
+  @media (max-width: 880px){
+    .app{ grid-template-columns: 1fr; }
+  }
+
+  /* ---------- Header ---------- */
+  .topbar{
+    grid-column: 1 / -1;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding: 14px 20px;
+    color:#f6f2ec;
+  }
+  .brand{
+    display:flex; align-items:baseline; gap:10px;
+  }
+  .brand .mark{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size: 22px;
+    letter-spacing: 0.2px;
+  }
+  .brand .tienda-tag{
+    font-size: 12px;
+    color: var(--rose);
+    border: 1px solid rgba(184,88,106,0.5);
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-weight:500;
+  }
+  .topbar .meta{
+    font-size: 12px;
+    color: #9a97a0;
+    text-align:right;
+  }
+
+  /* ---------- Left: catalog ---------- */
+  .panel{
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  .search-row{
+    display:flex; gap:10px; margin-bottom: 16px;
+  }
+  .search-row input{
+    flex:1;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .search-row input:focus{ outline: 2px solid var(--rose); outline-offset: 1px; }
+  .scan-btn{
+    background: var(--ink);
+    color: #fff;
+    border:none;
+    border-radius: 10px;
+    padding: 0 16px;
+    font-size: 13px;
+    cursor:pointer;
+    display:flex; align-items:center; gap:6px;
+  }
+  .scan-btn:hover{ background:#000; }
+
+  .cat-tabs{
+    display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 18px;
+  }
+  .cat-pill{
+    display:flex; align-items:center; gap:7px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    font-size: 13px;
+    cursor:pointer;
+    color: var(--ink-muted);
+  }
+  .cat-pill .dot{ width:8px; height:8px; border-radius:50%; }
+  .cat-pill.active{
+    background: var(--ink);
+    color:#fff;
+    border-color: var(--ink);
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+    max-height: 62vh;
+    overflow-y:auto;
+    padding-right: 4px;
+  }
+  .card{
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px;
+    cursor:pointer;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .card:hover{ transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.08); }
+  .card .swatch{
+    width:100%; height:64px; border-radius:8px; margin-bottom:10px;
+  }
+  .card .name{ font-size: 13.5px; font-weight:600; line-height:1.25; margin-bottom:4px; }
+  .card .variant{ font-size: 11.5px; color: var(--ink-muted); margin-bottom:8px; }
+  .card .price-row{ display:flex; justify-content:space-between; align-items:center; }
+  .card .price{ font-weight:700; font-size: 14px; color: var(--rose-deep); }
+  .card .stock{ font-size: 10.5px; color: var(--sage); font-weight:600; }
+  .card .stock.low{ color: var(--danger); }
+
+  /* ---------- Right: cart (recibo) ---------- */
+  .cart{
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    padding: 0;
+    display:flex; flex-direction:column;
+    max-height: calc(62vh + 90px);
+  }
+  .cart-head{
+    padding: 18px 20px 12px;
+    border-bottom: 1px dashed var(--line);
+  }
+  .cart-head h2{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size: 18px;
+    margin:0 0 2px;
+  }
+  .cart-head .sub{ font-size:12px; color:var(--ink-muted); }
+
+  .cart-items{
+    flex:1;
+    overflow-y:auto;
+    padding: 6px 20px;
+  }
+  .cart-item{
+    display:flex; justify-content:space-between; align-items:center;
+    padding: 12px 0;
+    border-bottom: 1px dashed var(--line);
+  }
+  .cart-item .info .name{ font-size:13px; font-weight:600; }
+  .cart-item .info .variant{ font-size:11px; color:var(--ink-muted); }
+  .cart-item .qty{
+    display:flex; align-items:center; gap:8px; margin-top:4px;
+  }
+  .qty button{
+    width:22px; height:22px; border-radius:6px; border:1px solid var(--line);
+    background:#fff; cursor:pointer; font-size:13px; line-height:1;
+  }
+  .qty span{ font-size:12.5px; min-width:14px; text-align:center; }
+  .cart-item .line-total{ font-weight:700; font-size:13.5px; }
+  .cart-item .remove{
+    background:none; border:none; color:var(--danger); font-size:11px; cursor:pointer;
+    margin-top:6px; padding:0; text-decoration:underline;
+  }
+  .empty-cart{
+    text-align:center; color:var(--ink-muted); font-size:13px; padding: 40px 10px;
+  }
+
+  .cart-foot{
+    padding: 14px 20px 20px;
+    border-top: 1px solid var(--line);
+  }
+  .row-line{
+    display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px; color: var(--ink-muted);
+  }
+  .row-line.total{
+    font-size:17px; font-weight:700; color: var(--ink);
+    margin-top:8px; padding-top:10px; border-top: 1px solid var(--line);
+  }
+  .discount-input{
+    display:flex; align-items:center; gap:6px;
+  }
+  .discount-input input{
+    width:70px; padding:5px 8px; border-radius:7px; border:1px solid var(--line);
+    font-size:12.5px; text-align:right; font-family:inherit;
+  }
+
+  .pay-methods{
+    display:flex; gap:8px; margin: 14px 0 10px;
+  }
+  .pay-methods button{
+    flex:1; padding:9px 0; border-radius:9px; border:1px solid var(--line);
+    background:#fff; font-size:12.5px; font-weight:600; cursor:pointer; color: var(--ink-muted);
+  }
+  .pay-methods button.active{
+    background: var(--sage-light); border-color: var(--sage); color: var(--sage);
+  }
+  .pay-split{
+    display:flex; gap:8px; margin-bottom: 14px;
+  }
+  .pay-split div{ flex:1; }
+  .pay-split label{ font-size: 10.5px; color: var(--ink-muted); display:block; margin-bottom:3px; }
+  .pay-split input{
+    width:100%; padding:8px 9px; border-radius:8px; border:1px solid var(--line);
+    font-size:13px; font-family:inherit;
+  }
+
+  .checkout-btn{
+    width:100%; padding: 14px 0; border:none; border-radius: 10px;
+    background: var(--rose-deep); color:#fff; font-size:14.5px; font-weight:700;
+    cursor:pointer; letter-spacing: 0.2px;
+  }
+  .checkout-btn:hover{ background:#7a3542; }
+  .checkout-btn:disabled{ background:#c9c4bd; cursor:not-allowed; }
+
+  .toast{
+    position: fixed; bottom: 22px; left:50%; transform: translateX(-50%);
+    background: var(--ink); color:#fff; padding: 12px 20px; border-radius: 10px;
+    font-size: 13.5px; opacity:0; pointer-events:none; transition: opacity .25s ease;
+  }
+  .toast.show{ opacity:1; }
+
+  ::-webkit-scrollbar{ width:6px; }
+  ::-webkit-scrollbar-thumb{ background:#d8d2c6; border-radius:3px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <span class="mark">Punto de Venta</span>
+      <span class="tienda-tag" id="tiendaTag">Tienda Centro · 001</span>
+    </div>
+    <div class="meta" id="fechaHora"></div>
+  </div>
+
+  <!-- Catálogo -->
+  <div class="panel">
+    <div class="search-row">
+      <input id="buscador" type="text" placeholder="Buscar producto o escanear código de barras…" autofocus>
+      <button class="scan-btn" onclick="simularEscaneo()">⎋ Escanear</button>
+    </div>
+
+    <div class="cat-tabs" id="catTabs"></div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- Carrito -->
+  <div class="cart">
+    <div class="cart-head">
+      <h2>Venta actual</h2>
+      <div class="sub" id="itemCount">0 artículos</div>
+    </div>
+
+    <div class="cart-items" id="cartItems">
+      <div class="empty-cart">El carrito está vacío.<br>Busca o escanea un producto para empezar.</div>
+    </div>
+
+    <div class="cart-foot">
+      <div class="row-line">
+        <span>Subtotal</span>
+        <span id="subtotalVal">$0.00</span>
+      </div>
+      <div class="row-line discount-input">
+        <span>Descuento</span>
+        <span>$ <input id="descuentoInput" type="number" min="0" value="0" oninput="render()"></span>
+      </div>
+      <div class="row-line total">
+        <span>Total</span>
+        <span id="totalVal">$0.00</span>
+      </div>
+
+      <div class="pay-methods">
+        <button id="btnEfectivo" class="active" onclick="setMetodo('efectivo')">Efectivo</button>
+        <button id="btnTransferencia" onclick="setMetodo('transferencia')">Transferencia</button>
+        <button id="btnMixto" onclick="setMetodo('mixto')">Dividir pago</button>
+      </div>
+
+      <div class="pay-split" id="paySplit" style="display:none;">
+        <div>
+          <label>Efectivo</label>
+          <input id="montoEfectivo" type="number" min="0" value="0" oninput="render()">
+        </div>
+        <div>
+          <label>Transferencia</label>
+          <input id="montoTransferencia" type="number" min="0" value="0" oninput="render()">
+        </div>
+      </div>
+
+      <button class="checkout-btn" id="checkoutBtn" onclick="cobrar()">Cobrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   DATOS DE EJEMPLO
+   Reemplazar por llamadas a la API real cuando el backend
+   esté desplegado, por ejemplo:
+   const API = 'https://tu-servidor.com/api';
+   fetch(`${API}/productos`, { headers: { Authorization: `Bearer ${token}` }})
+   ========================================================= */
+
+const CATEGORIAS = [
+  { nombre: 'Todas', color: '#1d1b1f' },
+  { nombre: 'Blusas', color: '#b8586a' },
+  { nombre: 'Vestidos', color: '#8f3f4d' },
+  { nombre: 'Pantalones', color: '#4c6b57' },
+  { nombre: 'Accesorios', color: '#c9a34e' },
+];
+
+const PRODUCTOS = [
+  { id:1, nombre:'Blusa Floral', categoria:'Blusas', color_ui:'#e7c8ce', variantes:[
+    { id:'1-S-rosa', talla:'S', color:'Rosa', precio:18.5, stock:6 },
+    { id:'1-M-rosa', talla:'M', color:'Rosa', precio:18.5, stock:2 },
+    { id:'1-M-blanco', talla:'M', color:'Blanco', precio:18.5, stock:9 },
+  ]},
+  { id:2, nombre:'Vestido Lino', categoria:'Vestidos', color_ui:'#d9cdb8', variantes:[
+    { id:'2-S-beige', talla:'S', color:'Beige', precio:32.0, stock:4 },
+    { id:'2-M-beige', talla:'M', color:'Beige', precio:32.0, stock:1 },
+  ]},
+  { id:3, nombre:'Pantalón Recto', categoria:'Pantalones', color_ui:'#3f4a44', variantes:[
+    { id:'3-32-negro', talla:'32', color:'Negro', precio:26.0, stock:8 },
+    { id:'3-34-negro', talla:'34', color:'Negro', precio:26.0, stock:5 },
+  ]},
+  { id:4, nombre:'Blusa Manga Larga', categoria:'Blusas', color_ui:'#c9b6bb', variantes:[
+    { id:'4-S-vino', talla:'S', color:'Vino', precio:21.0, stock:3 },
+  ]},
+  { id:5, nombre:'Vestido Casual', categoria:'Vestidos', color_ui:'#a9b8ad', variantes:[
+    { id:'5-M-verde', talla:'M', color:'Verde', precio:29.5, stock:0 },
+  ]},
+  { id:6, nombre:'Cinturón Cuero', categoria:'Accesorios', color_ui:'#5c4632', variantes:[
+    { id:'6-U-cafe', talla:'Única', color:'Café', precio:12.0, stock:10 },
+  ]},
+];
+
+let categoriaActiva = 'Todas';
+let carrito = []; // { variante_id, nombre, talla, color, precio, cantidad, stockDisponible }
+let metodoPago = 'efectivo';
+
+/* ---------- Render catálogo ---------- */
+function renderCategorias(){
+  const cont = document.getElementById('catTabs');
+  cont.innerHTML = CATEGORIAS.map(c => `
+    <div class="cat-pill ${c.nombre === categoriaActiva ? 'active' : ''}" onclick="filtrarCategoria('${c.nombre}')">
+      <span class="dot" style="background:${c.color}"></span>${c.nombre}
+    </div>
+  `).join('');
+}
+
+function filtrarCategoria(nombre){
+  categoriaActiva = nombre;
+  renderCategorias();
+  renderGrid();
+}
+
+function renderGrid(){
+  const term = document.getElementById('buscador').value.trim().toLowerCase();
+  const cont = document.getElementById('grid');
+
+  let items = [];
+  PRODUCTOS.forEach(p => {
+    if (categoriaActiva !== 'Todas' && p.categoria !== categoriaActiva) return;
+    p.variantes.forEach(v => {
+      const texto = `${p.nombre} ${v.talla} ${v.color}`.toLowerCase();
+      if (term && !texto.includes(term) && v.id !== term) return;
+      items.push({ ...v, nombre: p.nombre, color_ui: p.color_ui });
+    });
+  });
+
+  if (!items.length){
+    cont.innerHTML = `<div class="empty-cart">No se encontraron productos.</div>`;
+    return;
+  }
+
+  cont.innerHTML = items.map(it => `
+    <div class="card" onclick="agregarAlCarrito('${it.id}')">
+      <div class="swatch" style="background:${it.color_ui}"></div>
+      <div class="name">${it.nombre}</div>
+      <div class="variant">${it.talla} · ${it.color}</div>
+      <div class="price-row">
+        <span class="price">$${it.precio.toFixed(2)}</span>
+        <span class="stock ${it.stock <= 2 ? 'low' : ''}">${it.stock > 0 ? it.stock + ' und.' : 'agotado'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ---------- Buscar variante por id ---------- */
+function buscarVariante(varianteId){
+  for (const p of PRODUCTOS){
+    const v = p.variantes.find(x => x.id === varianteId);
+    if (v) return { ...v, nombre: p.nombre };
+  }
+  return null;
+}
+
+/* ---------- Carrito ---------- */
+function agregarAlCarrito(varianteId){
+  const v = buscarVariante(varianteId);
+  if (!v) return;
+  if (v.stock <= 0){ mostrarToast('Sin stock disponible para esta variante'); return; }
+
+  const existente = carrito.find(i => i.variante_id === varianteId);
+  if (existente){
+    if (existente.cantidad + 1 > v.stock){ mostrarToast('No hay más stock disponible'); return; }
+    existente.cantidad++;
+  } else {
+    carrito.push({
+      variante_id: varianteId,
+      nombre: v.nombre,
+      talla: v.talla,
+      color: v.color,
+      precio: v.precio,
+      cantidad: 1,
+      stockDisponible: v.stock,
+    });
+  }
+  render();
+}
+
+function cambiarCantidad(varianteId, delta){
+  const item = carrito.find(i => i.variante_id === varianteId);
+  if (!item) return;
+  const nueva = item.cantidad + delta;
+  if (nueva <= 0){ carrito = carrito.filter(i => i.variante_id !== varianteId); }
+  else if (nueva > item.stockDisponible){ mostrarToast('No hay más stock disponible'); return; }
+  else { item.cantidad = nueva; }
+  render();
+}
+
+function quitarDelCarrito(varianteId){
+  carrito = carrito.filter(i => i.variante_id !== varianteId);
+  render();
+}
+
+function renderCarrito(){
+  const cont = document.getElementById('cartItems');
+  document.getElementById('itemCount').textContent =
+    `${carrito.reduce((a,i)=>a+i.cantidad,0)} artículo(s)`;
+
+  if (!carrito.length){
+    cont.innerHTML = `<div class="empty-cart">El carrito está vacío.<br>Busca o escanea un producto para empezar.</div>`;
+    return;
+  }
+
+  cont.innerHTML = carrito.map(i => `
+    <div class="cart-item">
+      <div class="info">
+        <div class="name">${i.nombre}</div>
+        <div class="variant">${i.talla} · ${i.color}</div>
+        <div class="qty">
+          <button onclick="cambiarCantidad('${i.variante_id}', -1)">−</button>
+          <span>${i.cantidad}</span>
+          <button onclick="cambiarCantidad('${i.variante_id}', 1)">+</button>
+        </div>
+        <button class="remove" onclick="quitarDelCarrito('${i.variante_id}')">Quitar</button>
+      </div>
+      <div class="line-total">$${(i.precio * i.cantidad).toFixed(2)}</div>
+    </div>
+  `).join('');
+}
+
+/* ---------- Pago ---------- */
+function setMetodo(m){
+  metodoPago = m;
+  ['btnEfectivo','btnTransferencia','btnMixto'].forEach(id => document.getElementById(id).classList.remove('active'));
+  if (m === 'efectivo') document.getElementById('btnEfectivo').classList.add('active');
+  if (m === 'transferencia') document.getElementById('btnTransferencia').classList.add('active');
+  if (m === 'mixto') document.getElementById('btnMixto').classList.add('active');
+  document.getElementById('paySplit').style.display = m === 'mixto' ? 'flex' : 'none';
+  render();
+}
+
+function calcularTotales(){
+  const subtotal = carrito.reduce((a,i) => a + i.precio * i.cantidad, 0);
+  const descuento = Math.min(parseFloat(document.getElementById('descuentoInput').value) || 0, subtotal);
+  const total = Math.max(subtotal - descuento, 0);
+  return { subtotal, descuento, total };
+}
+
+/* ---------- Render general ---------- */
+function render(){
+  renderGrid();
+  renderCarrito();
+  const { subtotal, descuento, total } = calcularTotales();
+  document.getElementById('subtotalVal').textContent = `$${subtotal.toFixed(2)}`;
+  document.getElementById('totalVal').textContent = `$${total.toFixed(2)}`;
+
+  const btn = document.getElementById('checkoutBtn');
+  btn.disabled = carrito.length === 0;
+}
+
+/* ---------- Cobrar ---------- */
+function cobrar(){
+  const { subtotal, descuento, total } = calcularTotales();
+  if (!carrito.length) return;
+
+  let pagos = [];
+  if (metodoPago === 'efectivo'){
+    pagos = [{ metodo:'efectivo', monto: total }];
+  } else if (metodoPago === 'transferencia'){
+    pagos = [{ metodo:'transferencia', monto: total }];
+  } else {
+    const efectivo = parseFloat(document.getElementById('montoEfectivo').value) || 0;
+    const transferencia = parseFloat(document.getElementById('montoTransferencia').value) || 0;
+    if (Math.abs((efectivo + transferencia) - total) > 0.01){
+      mostrarToast(`Los pagos no cuadran con el total ($${total.toFixed(2)})`);
+      return;
+    }
+    pagos = [{ metodo:'efectivo', monto: efectivo }, { metodo:'transferencia', monto: transferencia }];
+  }
+
+  /* Aquí iría el POST real a /api/ventas con { items, pagos, descuento } */
+  console.log('Venta registrada (simulada):', { items: carrito, descuento, total, pagos });
+
+  // Descontar stock localmente (simulación)
+  carrito.forEach(i => {
+    for (const p of PRODUCTOS){
+      const v = p.variantes.find(x => x.id === i.variante_id);
+      if (v) v.stock -= i.cantidad;
+    }
+  });
+
+  mostrarToast(`Venta registrada — $${total.toFixed(2)}`);
+  carrito = [];
+  document.getElementById('descuentoInput').value = 0;
+  document.getElementById('montoEfectivo').value = 0;
+  document.getElementById('montoTransferencia').value = 0;
+  render();
+}
+
+/* ---------- Utilidades ---------- */
+function mostrarToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function simularEscaneo(){
+  const codigos = PRODUCTOS.flatMap(p => p.variantes.map(v => v.id));
+  const azar = codigos[Math.floor(Math.random() * codigos.length)];
+  document.getElementById('buscador').value = azar;
+  renderGrid();
+  mostrarToast('Código escaneado');
+}
+
+document.getElementById('buscador').addEventListener('input', renderGrid);
+
+function actualizarFechaHora(){
+  const ahora = new Date();
+  document.getElementById('fechaHora').textContent =
+    ahora.toLocaleDateString('es-EC', { weekday:'long', day:'numeric', month:'long' }) + ' · ' +
+    ahora.toLocaleTimeString('es-EC', { hour:'2-digit', minute:'2-digit' });
+}
+
+/* ---------- Init ---------- */
+renderCategorias();
+render();
+actualizarFechaHora();
+setInterval(actualizarFechaHora, 30000);
+</script>
+
+</body>
+</html>

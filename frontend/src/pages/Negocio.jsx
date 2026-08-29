@@ -1,0 +1,275 @@
+import { useEffect, useRef, useState } from 'react';
+import { api } from '../api.js';
+import { useAuth } from '../auth.jsx';
+import { useToast } from '../components/Toast.jsx';
+import SelectorImagen from '../components/SelectorImagen.jsx';
+
+const VACIO = {
+  nombre: '', razon_social: '', ruc: '', direccion: '', telefono: '', email: '',
+  logo_url: null, mensaje_recibo: '',
+  obligado_contabilidad: false, ambiente_sri: 'pruebas',
+  dir_matriz: '', nombre_comercial: '', contribuyente_especial: '', regimen: 'general',
+  iva_porcentaje: 15, precios_incluyen_iva: true, emitir_factura_auto: false,
+  smtp_host: '', smtp_port: 587, smtp_seguro: false, smtp_usuario: '',
+  smtp_remitente: '', smtp_remitente_nombre: '',
+  tiene_certificado: false, certificado_nombre: null, tiene_smtp_clave: false,
+};
+
+const leerArchivoBase64 = (file) => new Promise((res, rej) => {
+  const r = new FileReader();
+  r.onload = () => res(String(r.result));
+  r.onerror = () => rej(new Error('No se pudo leer el archivo'));
+  r.readAsDataURL(file);
+});
+
+export default function Negocio() {
+  const { esAdmin, setNegocio } = useAuth();
+  const toast = useToast();
+  const [f, setF] = useState(VACIO);
+  const [guardando, setGuardando] = useState(false);
+  const [saltarRecibo, setSaltarRecibo] = useState(localStorage.getItem('pos_saltar_recibo') === '1');
+
+  // Certificado
+  const p12Ref = useRef(null);
+  const [p12, setP12] = useState(null);          // { nombre, base64 }
+  const [p12Clave, setP12Clave] = useState('');
+  const [smtpClave, setSmtpClave] = useState('');
+
+  function cargar() {
+    api.get('/api/negocio').then((n) => setF({ ...VACIO, ...n })).catch((e) => toast.error(e.message));
+  }
+  useEffect(() => { cargar(); }, []);
+
+  function set(k, v) { setF((x) => ({ ...x, [k]: v })); }
+
+  async function guardar() {
+    setGuardando(true);
+    try {
+      const cuerpo = {
+        nombre: f.nombre?.trim() || 'Mi Tienda',
+        razon_social: f.razon_social?.trim() || null,
+        ruc: f.ruc?.trim() || null,
+        direccion: f.direccion?.trim() || null,
+        telefono: f.telefono?.trim() || null,
+        email: f.email?.trim() || null,
+        logo_url: f.logo_url || null,
+        mensaje_recibo: f.mensaje_recibo?.trim() || null,
+        obligado_contabilidad: !!f.obligado_contabilidad,
+        ambiente_sri: f.ambiente_sri,
+        dir_matriz: f.dir_matriz?.trim() || null,
+        nombre_comercial: f.nombre_comercial?.trim() || null,
+        contribuyente_especial: f.contribuyente_especial?.trim() || null,
+        regimen: f.regimen,
+        iva_porcentaje: Number(f.iva_porcentaje),
+        precios_incluyen_iva: !!f.precios_incluyen_iva,
+        emitir_factura_auto: !!f.emitir_factura_auto,
+        smtp_host: f.smtp_host?.trim() || null,
+        smtp_port: Number(f.smtp_port) || 587,
+        smtp_seguro: !!f.smtp_seguro,
+        smtp_usuario: f.smtp_usuario?.trim() || null,
+        smtp_remitente: f.smtp_remitente?.trim() || null,
+        smtp_remitente_nombre: f.smtp_remitente_nombre?.trim() || null,
+      };
+      if (smtpClave) cuerpo.smtp_clave = smtpClave;
+      if (p12) {
+        cuerpo.certificado_p12 = p12.base64;
+        cuerpo.certificado_clave = p12Clave;
+        cuerpo.certificado_nombre = p12.nombre;
+      }
+
+      const actualizado = await api.put('/api/negocio', cuerpo);
+      setNegocio(actualizado);
+      setF({ ...VACIO, ...actualizado });
+      setP12(null); setP12Clave(''); setSmtpClave('');
+      if (p12Ref.current) p12Ref.current.value = '';
+      toast.ok('Datos del negocio guardados');
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  async function elegirP12(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!/\.(p12|pfx)$/i.test(file.name)) { toast.error('El archivo debe ser .p12 o .pfx'); return; }
+    try {
+      setP12({ nombre: file.name, base64: await leerArchivoBase64(file) });
+    } catch (err) { toast.error(err.message); }
+  }
+
+  async function quitarCertificado() {
+    if (!window.confirm('¿Quitar el certificado guardado?')) return;
+    try {
+      const n = await api.put('/api/negocio', { certificado_p12: '' });
+      setF({ ...VACIO, ...n });
+      toast.ok('Certificado quitado');
+    } catch (e) { toast.error(e.message); }
+  }
+
+  function cambiarSaltar(v) {
+    setSaltarRecibo(v);
+    localStorage.setItem('pos_saltar_recibo', v ? '1' : '0');
+  }
+
+  if (!esAdmin) return <div className="pagina"><p className="vacio">Solo el administrador puede configurar el negocio.</p></div>;
+
+  return (
+    <div className="pagina">
+      <div className="pagina-cab"><h1>Datos del negocio</h1></div>
+
+      {/* ---------- Datos generales ---------- */}
+      <div className="panel" style={{ maxWidth: 720 }}>
+        <div className="negocio-logo">
+          <SelectorImagen valor={f.logo_url} onCambio={(v) => set('logo_url', v)} etiqueta="Subir logo" maxLado={360} />
+          <p className="nota-min">Aparece en el recibo y en la factura. Imagen cuadrada o apaisada.</p>
+        </div>
+
+        <div className="form-grid">
+          <label>Nombre del negocio
+            <input value={f.nombre} onChange={(e) => set('nombre', e.target.value)} placeholder="Boutique Carmen" />
+          </label>
+          <label>Nombre comercial (SRI)
+            <input value={f.nombre_comercial} onChange={(e) => set('nombre_comercial', e.target.value)} placeholder="Boutique Carmen" />
+          </label>
+          <label>Razón social (SRI)
+            <input value={f.razon_social} onChange={(e) => set('razon_social', e.target.value)} placeholder="BELECELA GUAPI JOSE DANIEL" />
+          </label>
+          <label>RUC
+            <input value={f.ruc} onChange={(e) => set('ruc', e.target.value)} placeholder="2100814264001" />
+          </label>
+          <label>Teléfono
+            <input value={f.telefono} onChange={(e) => set('telefono', e.target.value)} placeholder="099 999 9999" />
+          </label>
+          <label>Correo del negocio
+            <input type="email" value={f.email} onChange={(e) => set('email', e.target.value)} placeholder="ventas@minegocio.com" />
+          </label>
+          <label className="ancho">Dirección del establecimiento
+            <input value={f.direccion} onChange={(e) => set('direccion', e.target.value)} placeholder="Av. Principal y calle 2, local 5" />
+          </label>
+          <label className="ancho">Dirección matriz (SRI)
+            <input value={f.dir_matriz} onChange={(e) => set('dir_matriz', e.target.value)} placeholder="La misma, si no tienes varias sucursales" />
+          </label>
+          <label className="ancho">Mensaje al pie del recibo
+            <input value={f.mensaje_recibo} onChange={(e) => set('mensaje_recibo', e.target.value)} placeholder="¡Gracias por su compra!" />
+          </label>
+        </div>
+      </div>
+
+      {/* ---------- Impuestos y facturación ---------- */}
+      <div className="panel" style={{ maxWidth: 720, marginTop: 16 }}>
+        <h2>Impuestos y facturación electrónica</h2>
+        <div className="form-grid">
+          <label>Ambiente SRI
+            <select value={f.ambiente_sri} onChange={(e) => set('ambiente_sri', e.target.value)}>
+              <option value="pruebas">Pruebas</option>
+              <option value="produccion">Producción</option>
+            </select>
+          </label>
+          <label>Régimen
+            <select value={f.regimen} onChange={(e) => set('regimen', e.target.value)}>
+              <option value="general">General</option>
+              <option value="rimpe_emprendedor">RIMPE - Emprendedor</option>
+              <option value="rimpe_popular">RIMPE - Negocio popular</option>
+            </select>
+          </label>
+          <label>IVA de los productos
+            <select value={f.iva_porcentaje} onChange={(e) => set('iva_porcentaje', e.target.value)}>
+              <option value={15}>15%</option>
+              <option value={5}>5%</option>
+              <option value={0}>0%</option>
+            </select>
+          </label>
+          <label>Contribuyente especial (Nro. resolución)
+            <input value={f.contribuyente_especial} onChange={(e) => set('contribuyente_especial', e.target.value)} placeholder="Dejar vacío si no aplica" />
+          </label>
+          <label className="check-inline">
+            <input type="checkbox" checked={f.precios_incluyen_iva}
+              onChange={(e) => set('precios_incluyen_iva', e.target.checked)} />
+            Los precios ya incluyen IVA (PVP)
+          </label>
+          <label className="check-inline">
+            <input type="checkbox" checked={f.obligado_contabilidad}
+              onChange={(e) => set('obligado_contabilidad', e.target.checked)} />
+            Obligado a llevar contabilidad
+          </label>
+          <label className="check-inline ancho">
+            <input type="checkbox" checked={f.emitir_factura_auto}
+              onChange={(e) => set('emitir_factura_auto', e.target.checked)} />
+            Emitir factura electrónica automáticamente en cada venta
+          </label>
+        </div>
+        <p className="nota-min">Si no la activas, la factura se emite con el botón "Factura electrónica" al terminar cada venta.</p>
+      </div>
+
+      {/* ---------- Firma electrónica ---------- */}
+      <div className="panel" style={{ maxWidth: 720, marginTop: 16 }}>
+        <h2>Firma electrónica (.p12)</h2>
+        {f.tiene_certificado && !p12 ? (
+          <div className="cert-estado">
+            <span className="estado completada">Certificado cargado</span>
+            {f.certificado_nombre && <span className="nota-min"> · {f.certificado_nombre}</span>}
+            <button className="btn-texto peligro" onClick={quitarCertificado}>Quitar</button>
+          </div>
+        ) : null}
+        <div className="form-grid">
+          <label>Archivo del certificado
+            <input ref={p12Ref} type="file" accept=".p12,.pfx" onChange={elegirP12} />
+          </label>
+          <label>Contraseña de la firma
+            <input type="password" value={p12Clave} onChange={(e) => setP12Clave(e.target.value)}
+              placeholder={f.tiene_certificado ? '••••••••' : ''} autoComplete="new-password" />
+          </label>
+        </div>
+        {p12 && <p className="nota-min">Se validará al guardar: <strong>{p12.nombre}</strong></p>}
+      </div>
+
+      {/* ---------- Correo saliente ---------- */}
+      <div className="panel" style={{ maxWidth: 720, marginTop: 16 }}>
+        <h2>Correo para enviar las facturas (SMTP)</h2>
+        <div className="form-grid">
+          <label>Servidor (host)
+            <input value={f.smtp_host} onChange={(e) => set('smtp_host', e.target.value)} placeholder="smtp.gmail.com" />
+          </label>
+          <label>Puerto
+            <input type="number" value={f.smtp_port} onChange={(e) => set('smtp_port', e.target.value)} placeholder="587" />
+          </label>
+          <label>Usuario
+            <input value={f.smtp_usuario} onChange={(e) => set('smtp_usuario', e.target.value)} placeholder="tucorreo@gmail.com" autoComplete="off" />
+          </label>
+          <label>Contraseña {f.tiene_smtp_clave && <span className="estado completada">guardada</span>}
+            <input type="password" value={smtpClave} onChange={(e) => setSmtpClave(e.target.value)}
+              placeholder={f.tiene_smtp_clave ? '••••••••' : 'contraseña de aplicación'} autoComplete="new-password" />
+          </label>
+          <label>Remitente (correo que aparece)
+            <input value={f.smtp_remitente} onChange={(e) => set('smtp_remitente', e.target.value)} placeholder="tucorreo@gmail.com" />
+          </label>
+          <label>Nombre del remitente
+            <input value={f.smtp_remitente_nombre} onChange={(e) => set('smtp_remitente_nombre', e.target.value)} placeholder="Boutique Carmen" />
+          </label>
+          <label className="check-inline ancho">
+            <input type="checkbox" checked={f.smtp_seguro} onChange={(e) => set('smtp_seguro', e.target.checked)} />
+            Conexión SSL (puerto 465). Si usas 587 déjalo desmarcado.
+          </label>
+        </div>
+        <p className="nota-min">Gmail: activa la verificación en 2 pasos y crea una "contraseña de aplicación".</p>
+      </div>
+
+      <div className="modal-acciones" style={{ maxWidth: 720 }}>
+        <button className="btn-primario" onClick={guardar} disabled={guardando}>
+          {guardando ? 'Guardando…' : 'Guardar todo'}
+        </button>
+      </div>
+
+      {/* ---------- Recibo ---------- */}
+      <div className="panel" style={{ maxWidth: 720, marginTop: 16 }}>
+        <h2>Recibo al cobrar</h2>
+        <label className="check-inline">
+          <input type="checkbox" checked={saltarRecibo} onChange={(e) => cambiarSaltar(e.target.checked)} />
+          No mostrar las opciones de recibo al terminar una venta (cobro rápido)
+        </label>
+      </div>
+    </div>
+  );
+}

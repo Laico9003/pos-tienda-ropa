@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.local
+frontend/.env
+frontend/.env.local
+*.log
+logfile
+.DS_Store
+dist/
+build/
+coverage/
+.pgdata-test/
+.pgdata-local/
+ride3.pdf

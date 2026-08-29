@@ -1,0 +1,46 @@
+{
+  "name": "pos-tienda-ropa",
+  "version": "1.0.0",
+  "description": "Backend del punto de venta e inventario para tienda de ropa (2 tiendas, mismo RUC)",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "build": "npm --prefix frontend install && npm --prefix frontend run build",
+    "migrar": "node src/scripts/migrar.js",
+    "crear-admin": "node src/scripts/crear-admin.js",
+    "db:local": "node src/scripts/db-local.js",
+    "demo": "node src/scripts/demo.js",
+    "test": "node test/integracion.js",
+    "test:sri": "node test/sri.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "pos",
+    "inventario",
+    "tienda-ropa",
+    "ecuador"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "ec-sri-invoice-signer": "^1.8.1",
+    "express": "^5.2.1",
+    "fast-xml-parser": "^5.11.1",
+    "jsonwebtoken": "^9.0.3",
+    "node-forge": "^1.4.0",
+    "nodemailer": "^9.0.6",
+    "pdfkit": "^0.20.1",
+    "pg": "^8.23.0",
+    "xmlbuilder2": "^4.0.3"
+  },
+  "devDependencies": {
+    "embedded-postgres": "^18.4.0-beta.17"
+  }
+}

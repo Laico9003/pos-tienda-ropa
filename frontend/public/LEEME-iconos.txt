@@ -1,0 +1,15 @@
+Coloca aquí tus archivos de ícono (esta carpeta "public" se sirve en la raíz del sitio):
+
+  favicon.png       -> 48x48 o 64x64 px   (ícono de la pestaña del navegador)
+  favicon.svg       -> opcional, si tienes el ícono vectorial
+  icono-192.png     -> 192x192 px         (ícono al "instalar" la app en tablet/celular)
+  icono-512.png     -> 512x512 px         (ícono grande / splash)
+
+Con solo poner los archivos con esos nombres, ya funcionan (index.html y manifest.webmanifest
+ya los referencian). No hace falta tocar código.
+
+Para generar los tamaños desde una sola imagen puedes usar https://realfavicongenerator.net
+o https://www.pwabuilder.com/imageGenerator
+
+Nota: el LOGO que aparece dentro del sistema (barra lateral) y en el recibo / factura
+NO va aquí. Ese se sube desde:  Datos del negocio -> Subir logo.
