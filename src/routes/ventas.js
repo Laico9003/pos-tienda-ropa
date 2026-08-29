@@ -38,6 +38,16 @@ router.post('/', requiereRol('admin', 'vendedor'), async (req, res) => {
   const descuentoTotal = redondear2(aNumero(req.body.descuento_total ?? 0, 'descuento_total', { min: 0 }));
   const cliente = req.body.cliente || {};
 
+  // Caja: se vincula la venta con la caja abierta de la tienda (y se exige si el negocio lo pide).
+  const [{ rows: cajaRows }, { rows: negRows }] = await Promise.all([
+    consulta(`SELECT id FROM cajas WHERE tienda_id = $1 AND estado = 'abierta'`, [tiendaId]),
+    consulta(`SELECT exigir_caja FROM negocio WHERE id = 1`),
+  ]);
+  const cajaId = cajaRows[0]?.id || null;
+  if (!cajaId && negRows[0]?.exigir_caja) {
+    throw new ErrorHttp(409, 'Debes abrir la caja antes de registrar ventas');
+  }
+
   const venta = await conTransaccion(async (cli) => {
     let subtotal = 0;
     const lineas = [];
@@ -140,8 +150,8 @@ router.post('/', requiereRol('admin', 'vendedor'), async (req, res) => {
     const { rows: vr } = await cli.query(
       `INSERT INTO ventas
          (tienda_id, usuario_id, cliente_nombre, cliente_identificacion, cliente_email, cliente_direccion,
-          subtotal, descuento_total, total, total_pagado, cambio)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          subtotal, descuento_total, total, total_pagado, cambio, caja_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         tiendaId,
@@ -155,6 +165,7 @@ router.post('/', requiereRol('admin', 'vendedor'), async (req, res) => {
         total,
         totalPagado,
         cambio,
+        cajaId,
       ],
     );
     const nuevaVenta = vr[0];

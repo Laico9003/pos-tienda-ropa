@@ -201,6 +201,33 @@ h2.sub { margin: 26px 0 10px; font-size: 13px; text-transform: uppercase; letter
 .pago-transfer { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .pago-transfer label.ancho { grid-column: 1 / -1; }
 
+/* ---------- Caja ---------- */
+.caja-cab { margin-bottom: 14px; font-size: 14px; }
+.caja-cab .estado { margin-right: 8px; }
+.caja-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.caja-kpis > div { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+.caja-kpis span { font-size: 12px; color: var(--texto-sec); }
+.caja-kpis strong { font-size: 18px; }
+.caja-kpis .destacado { border-color: var(--primario); background: var(--primario-suave); }
+.caja-kpis .destacado strong { color: var(--primario-osc); }
+
+.desglose { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 12px 0; }
+.desglose .de-col h5 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--texto-sec); }
+.desglose .tabla-sub input { width: 70px; text-align: right; }
+.de-den { font-weight: 700; white-space: nowrap; }
+.de-total { grid-column: 1 / -1; text-align: right; font-size: 15px; padding-top: 6px; border-top: 1px dashed var(--borde); }
+.de-total strong { font-size: 20px; }
+
+.arqueo-resumen { background: #fafbfc; border: 1px solid var(--borde); border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+.arqueo-resumen .fila { display: flex; justify-content: space-between; padding: 3px 0; font-size: 14px; }
+.arqueo-resumen .fila.total { font-weight: 800; font-size: 16px; border-top: 1px dashed var(--borde); margin-top: 4px; padding-top: 8px; }
+.arqueo-badge { margin-top: 10px; text-align: center; font-weight: 800; font-size: 16px; padding: 8px; border-radius: 9px; }
+.arqueo-badge.ok { background: var(--ok-suave); color: var(--ok); }
+.arqueo-badge.bad { background: var(--alerta-suave); color: var(--alerta); }
+.check.malo { background: var(--alerta-suave); color: var(--alerta); }
+
+@media (max-width: 640px) { .desglose { grid-template-columns: 1fr; } }
+
 /* Conciliación de transferencias */
 .tira-conc { display: flex; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
 .tira-conc > div { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; }

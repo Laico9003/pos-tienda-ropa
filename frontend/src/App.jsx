@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import Productos from './pages/Productos.jsx';
 import Inventario from './pages/Inventario.jsx';
 import Ventas from './pages/Ventas.jsx';
+import Caja from './pages/Caja.jsx';
 import Usuarios from './pages/Usuarios.jsx';
 import Negocio from './pages/Negocio.jsx';
 import Comprobantes from './pages/Comprobantes.jsx';
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/productos" element={<Productos />} />
         <Route path="/inventario" element={<Inventario />} />
         <Route path="/ventas" element={<Ventas />} />
+        <Route path="/caja" element={<Caja />} />
         <Route path="/usuarios" element={<Usuarios />} />
         <Route path="/negocio" element={<Negocio />} />
         <Route path="/comprobantes" element={<Comprobantes />} />

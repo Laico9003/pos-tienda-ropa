@@ -3,7 +3,7 @@ import { useAuth } from '../auth.jsx';
 
 const ICON = {
   venta: '🛒', dashboard: '📊', productos: '👕', inventario: '📦', ventas: '🧾',
-  comprobantes: '🧮', usuarios: '👥', negocio: '🏪',
+  caja: '💰', comprobantes: '🧮', usuarios: '👥', negocio: '🏪',
 };
 
 export default function Layout({ children }) {
@@ -15,6 +15,7 @@ export default function Layout({ children }) {
     { to: '/productos', txt: 'Productos', k: 'productos' },
     puedeInventario && { to: '/inventario', txt: 'Inventario', k: 'inventario' },
     { to: '/ventas', txt: 'Ventas', k: 'ventas' },
+    { to: '/caja', txt: 'Caja', k: 'caja' },
     { to: '/comprobantes', txt: 'Comprobantes', k: 'comprobantes' },
     esAdmin && { to: '/usuarios', txt: 'Usuarios', k: 'usuarios' },
     esAdmin && { to: '/negocio', txt: 'Datos del negocio', k: 'negocio' },

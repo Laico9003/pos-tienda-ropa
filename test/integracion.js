@@ -209,6 +209,51 @@ async function main() {
     r = await api('POST', `/api/ventas/${ventaId}/anular`, { token: tokenAdmin, body: { motivo: 'otra vez' } });
     ok(r.status === 409, 'no se puede anular dos veces => 409', r.status);
 
+    console.log('\n— Caja: apertura, venta, retiro, cierre —');
+    r = await api('GET', '/api/cajas/actual', { token: tokenVendedor });
+    ok(r.datos.caja === null, 'no hay caja abierta al inicio');
+
+    r = await api('POST', '/api/cajas/abrir', {
+      token: tokenVendedor,
+      body: { desglose_apertura: { billetes: { 20: 2, 10: 1 }, monedas: { '0.25': 4 } } },
+    });
+    ok(r.status === 201 && Number(r.datos.caja.fondo_inicial) === 51, 'abre caja con fondo $51.00 (2×20 + 10 + 4×0.25)', r.datos.caja);
+    const cajaId = r.datos.caja.id;
+
+    r = await api('POST', '/api/cajas/abrir', { token: tokenVendedor, body: { desglose_apertura: {} } });
+    ok(r.status === 409, 'no permite abrir una segunda caja => 409');
+
+    r = await api('POST', '/api/ventas', {
+      token: tokenVendedor,
+      body: { items: [{ variante_id: varM, cantidad: 1 }], pagos: [{ metodo: 'efectivo', monto: 20 }] },
+    });
+    ok(r.status === 201, 'venta durante la caja', r.datos);
+    const totalCaja = Number(r.datos.total); // 14.90, pagado 20, cambio 5.10 -> efectivo neto = 14.90
+
+    r = await api('POST', `/api/cajas/${cajaId}/movimiento`, {
+      token: tokenVendedor, body: { tipo: 'retiro', monto: 10, motivo: 'prueba' },
+    });
+    ok(r.status === 201, 'registra un retiro de $10');
+
+    r = await api('GET', '/api/cajas/actual', { token: tokenVendedor });
+    const esperado = 51 + totalCaja - 10;
+    ok(Math.abs(r.datos.totales.efectivo_esperado - esperado) < 0.005, `efectivo esperado = ${esperado.toFixed(2)}`, r.datos.totales);
+    ok(Math.abs(r.datos.totales.ventas_efectivo - totalCaja) < 0.005, 'ventas efectivo netas = total de la venta');
+
+    // Arqueo exacto: 50 + 5 + 3×0.25 + 0.10 + 0.05 = 55.90
+    r = await api('POST', `/api/cajas/${cajaId}/cerrar`, {
+      token: tokenVendedor,
+      body: { desglose_cierre: { billetes: { 50: 1, 5: 1 }, monedas: { '0.25': 3, '0.10': 1, '0.05': 1 } } },
+    });
+    ok(r.status === 200 && r.datos.caja.resultado === 'cuadrada' && Number(r.datos.caja.diferencia) === 0,
+      'cierra CAJA CUADRADA, diferencia $0.00', r.datos.caja);
+
+    r = await api('GET', '/api/cajas', { token: tokenVendedor });
+    ok(r.datos.some((c) => c.id === cajaId && c.estado === 'cerrada'), 'la caja cerrada aparece en el historial');
+
+    r = await api('POST', `/api/cajas/${cajaId}/cerrar`, { token: tokenVendedor, body: { desglose_cierre: {} } });
+    ok(r.status === 409, 'no se puede cerrar dos veces => 409');
+
     console.log('\n— Concurrencia: 2 ventas simultáneas del último ítem —');
     // Dejar stock exacto = 1 en varS de otra variante nueva
     r = await api('POST', '/api/productos', {

@@ -204,9 +204,54 @@ ALTER TABLE negocio ADD COLUMN IF NOT EXISTS smtp_usuario           TEXT;
 ALTER TABLE negocio ADD COLUMN IF NOT EXISTS smtp_clave_cif         TEXT;      -- contraseña SMTP (AES-GCM)
 ALTER TABLE negocio ADD COLUMN IF NOT EXISTS smtp_remitente         TEXT;
 ALTER TABLE negocio ADD COLUMN IF NOT EXISTS smtp_remitente_nombre  TEXT;
+ALTER TABLE negocio ADD COLUMN IF NOT EXISTS exigir_caja            BOOLEAN NOT NULL DEFAULT false; -- exigir caja abierta para vender
 
 -- Nota interna opcional por venta (para bases previas)
 ALTER TABLE ventas ADD COLUMN IF NOT EXISTS nota TEXT;
+
+-- ---------- Cajas (apertura / cierre / arqueo) ----------
+CREATE TABLE IF NOT EXISTS cajas (
+  id                    SERIAL PRIMARY KEY,
+  tienda_id             INTEGER NOT NULL REFERENCES tiendas(id),
+  usuario_id            INTEGER NOT NULL REFERENCES usuarios(id),   -- responsable (quien abrió)
+  numero                INTEGER NOT NULL,                            -- correlativo por tienda
+  estado                TEXT NOT NULL DEFAULT 'abierta' CHECK (estado IN ('abierta', 'cerrada')),
+  abierta_en            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  fondo_inicial         NUMERIC(12,2) NOT NULL DEFAULT 0,
+  desglose_apertura     JSONB,          -- { "billetes": {...}, "monedas": {...} }
+  -- cierre:
+  cerrada_en            TIMESTAMPTZ,
+  cerrada_por           INTEGER REFERENCES usuarios(id),
+  desglose_cierre       JSONB,
+  efectivo_contado      NUMERIC(12,2),
+  efectivo_esperado     NUMERIC(12,2),
+  ventas_efectivo       NUMERIC(12,2),
+  ventas_transferencia  NUMERIC(12,2),
+  retiros_total         NUMERIC(12,2),
+  ingresos_total        NUMERIC(12,2),
+  num_ventas            INTEGER,
+  diferencia            NUMERIC(12,2),
+  resultado             TEXT CHECK (resultado IN ('cuadrada', 'sobrante', 'faltante')),
+  observacion           TEXT
+);
+-- Solo una caja abierta por tienda a la vez
+CREATE UNIQUE INDEX IF NOT EXISTS idx_caja_abierta_tienda ON cajas(tienda_id) WHERE estado = 'abierta';
+CREATE INDEX IF NOT EXISTS idx_cajas_tienda ON cajas(tienda_id, abierta_en);
+
+CREATE TABLE IF NOT EXISTS movimientos_caja (
+  id          SERIAL PRIMARY KEY,
+  caja_id     INTEGER NOT NULL REFERENCES cajas(id) ON DELETE CASCADE,
+  tipo        TEXT NOT NULL CHECK (tipo IN ('retiro', 'ingreso')),  -- retiro: saca efectivo · ingreso: agrega
+  monto       NUMERIC(12,2) NOT NULL CHECK (monto > 0),
+  motivo      TEXT,
+  usuario_id  INTEGER REFERENCES usuarios(id),
+  creado_en   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_movcaja_caja ON movimientos_caja(caja_id);
+
+-- Vincula cada venta con la caja abierta al momento de registrarla
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS caja_id INTEGER REFERENCES cajas(id);
+CREATE INDEX IF NOT EXISTS idx_ventas_caja ON ventas(caja_id);
 
 -- ---------- Secuenciales de comprobantes por tienda ----------
 CREATE TABLE IF NOT EXISTS secuencias (

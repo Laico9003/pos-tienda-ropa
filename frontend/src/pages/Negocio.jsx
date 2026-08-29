@@ -9,7 +9,7 @@ const VACIO = {
   logo_url: null, mensaje_recibo: '',
   obligado_contabilidad: false, ambiente_sri: 'pruebas',
   dir_matriz: '', nombre_comercial: '', contribuyente_especial: '', regimen: 'general',
-  iva_porcentaje: 15, precios_incluyen_iva: true, emitir_factura_auto: false,
+  iva_porcentaje: 15, precios_incluyen_iva: true, emitir_factura_auto: false, exigir_caja: false,
   smtp_host: '', smtp_port: 587, smtp_seguro: false, smtp_usuario: '',
   smtp_remitente: '', smtp_remitente_nombre: '',
   tiene_certificado: false, certificado_nombre: null, tiene_smtp_clave: false,
@@ -63,6 +63,7 @@ export default function Negocio() {
         iva_porcentaje: Number(f.iva_porcentaje),
         precios_incluyen_iva: !!f.precios_incluyen_iva,
         emitir_factura_auto: !!f.emitir_factura_auto,
+        exigir_caja: !!f.exigir_caja,
         smtp_host: f.smtp_host?.trim() || null,
         smtp_port: Number(f.smtp_port) || 587,
         smtp_seguro: !!f.smtp_seguro,
@@ -198,6 +199,11 @@ export default function Negocio() {
             <input type="checkbox" checked={f.emitir_factura_auto}
               onChange={(e) => set('emitir_factura_auto', e.target.checked)} />
             Emitir factura electrónica automáticamente en cada venta
+          </label>
+          <label className="check-inline ancho">
+            <input type="checkbox" checked={f.exigir_caja}
+              onChange={(e) => set('exigir_caja', e.target.checked)} />
+            Exigir una caja abierta para poder registrar ventas
           </label>
         </div>
         <p className="nota-min">Si no la activas, la factura se emite con el botón "Factura electrónica" al terminar cada venta.</p>

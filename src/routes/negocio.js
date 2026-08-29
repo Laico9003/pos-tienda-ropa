@@ -14,7 +14,7 @@ const CAMPOS = [
   'logo_url', 'mensaje_recibo',
   'dir_matriz', 'nombre_comercial', 'contribuyente_especial', 'regimen',
   'iva_porcentaje', 'precios_incluyen_iva', 'emitir_factura_auto',
-  'obligado_contabilidad', 'ambiente_sri',
+  'obligado_contabilidad', 'ambiente_sri', 'exigir_caja',
   'smtp_host', 'smtp_port', 'smtp_seguro', 'smtp_usuario', 'smtp_remitente', 'smtp_remitente_nombre',
 ];
 const ANULABLES = new Set([
