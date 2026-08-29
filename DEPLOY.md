@@ -28,8 +28,8 @@ git push -u origin main
 
    | Variable | Valor |
    |---|---|
-   | `DATABASE_URL` | (referencia a `${{Postgres.DATABASE_URL}}`) |
-   | `DATABASE_SSL` | `true` |
+   | `DATABASE_URL` | **Add Reference → Postgres → `DATABASE_URL`** (la interna) |
+   | `DATABASE_SSL` | `false` |
    | `JWT_SECRET` | una clave larga aleatoria |
    | `SRI_CLAVE` | otra clave larga aleatoria — **NO cambiarla nunca** |
    | `SRI_WORKER` | `on` |

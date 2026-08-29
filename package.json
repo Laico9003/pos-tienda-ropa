@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "build": "npm --prefix frontend install && npm --prefix frontend run build",
+    "build": "npm --prefix frontend install --include=dev && npm --prefix frontend run build",
     "migrar": "node src/scripts/migrar.js",
     "crear-admin": "node src/scripts/crear-admin.js",
     "db:local": "node src/scripts/db-local.js",
