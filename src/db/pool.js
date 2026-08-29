@@ -5,18 +5,30 @@ dotenv.config();
 
 const { Pool } = pkg;
 
-if (!process.env.DATABASE_URL) {
-  console.error('Falta DATABASE_URL en el archivo .env');
+// Solo se usa DATABASE_URL si de verdad parece una URL de PostgreSQL.
+// Si viene con basura (p. ej. una referencia mal pegada), se ignora y se
+// usan las variables sueltas PGHOST / PGUSER / PGPASSWORD / PGDATABASE / PGPORT
+// que Railway/Render inyectan al conectar la base.
+const url = process.env.DATABASE_URL;
+const urlValida = typeof url === 'string' && /^postgres(ql)?:\/\/.+@.+/i.test(url.trim());
+
+if (!urlValida && !process.env.PGHOST) {
+  console.error(
+    'No hay conexión a la base de datos válida.\n' +
+    `  DATABASE_URL = ${url ? JSON.stringify(url.slice(0, 40) + '…') : '(vacío)'}\n` +
+    '  Debe ser algo como  postgresql://usuario:clave@host:5432/basedatos\n' +
+    '  (o definir PGHOST, PGUSER, PGPASSWORD, PGDATABASE).',
+  );
   process.exit(1);
 }
 
-// PostgreSQL administrado (Railway, Render, Neon, Supabase...) suele exigir SSL.
 const necesitaSSL =
-  /sslmode=require/.test(process.env.DATABASE_URL) ||
-  process.env.DATABASE_SSL === 'true';
+  (urlValida && /sslmode=require/.test(url)) ||
+  process.env.DATABASE_SSL === 'true' ||
+  process.env.PGSSLMODE === 'require';
 
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  ...(urlValida ? { connectionString: url.trim() } : {}), // si no, pg toma PGHOST/PGUSER/...
   ssl: necesitaSSL ? { rejectUnauthorized: false } : false,
 });
 
