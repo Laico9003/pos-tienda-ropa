@@ -179,8 +179,16 @@ async function main() {
     ok(r.status === 400, 'rechaza la misma variante repetida en dos líneas => 400', r.datos);
 
     r = await api('POST', '/api/ventas', { token: tokenAdmin, body: { items: [{ variante_id: varM, cantidad: 1 }],
-      pagos: [{ metodo: 'transferencia', monto: 50 }] } });
+      pagos: [{ metodo: 'transferencia', monto: 50, banco: 'Banco Pichincha', documento: 'TR-1' }] } });
     ok(r.status === 400 && /vuelto/i.test(r.datos.error || ''), 'no da vuelto de transferencia => 400', r.datos);
+
+    r = await api('POST', '/api/ventas', { token: tokenAdmin, body: { items: [{ variante_id: varM, cantidad: 1 }],
+      pagos: [{ metodo: 'transferencia', monto: 14.9, banco: 'Banco Pichincha' }] } });
+    ok(r.status === 400 && /comprobante/i.test(r.datos.error || ''), 'transferencia sin N.º de comprobante => 400', r.datos);
+
+    r = await api('POST', '/api/ventas', { token: tokenAdmin, body: { items: [{ variante_id: varM, cantidad: 1 }],
+      pagos: [{ metodo: 'transferencia', monto: 14.9, documento: 'TR-2' }] } });
+    ok(r.status === 400 && /banco/i.test(r.datos.error || ''), 'transferencia sin banco => 400', r.datos);
 
     console.log('\n— Dashboard —');
     r = await api('GET', '/api/reportes/dashboard', { token: tokenVendedor });

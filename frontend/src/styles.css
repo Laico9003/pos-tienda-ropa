@@ -305,6 +305,8 @@ tr.conc-ok td { background: var(--ok-suave); }
 .form-cliente label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; font-weight: 600; margin: 6px 0 0; }
 .form-cliente input { padding: 9px 11px; border: 1px solid var(--borde); border-radius: 9px; font-weight: 400; }
 .peligro-txt { color: var(--alerta); }
+.req { color: var(--alerta); font-weight: 700; }
+.campo-falta, .campo-falta input, .campo-falta select { border-color: var(--alerta) !important; }
 .check { width: 54px; height: 54px; border-radius: 50%; background: var(--ok-suave); color: var(--ok); font-size: 28px; display: grid; place-items: center; margin: 0 auto 12px; }
 .recibo .fila { display: flex; justify-content: space-between; padding: 5px 0; }
 .recibo .fila.cambio { color: var(--ok); font-weight: 800; font-size: 16px; border-top: 1px dashed var(--borde); margin-top: 6px; padding-top: 10px; }

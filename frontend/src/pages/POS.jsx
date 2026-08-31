@@ -183,13 +183,17 @@ export default function POS() {
   async function cobrar() {
     if (carrito.length === 0) return;
     if (recibido + 0.005 < total) { toast.error('El pago no cubre el total'); return; }
+    if (Number(transferencia) > 0) {
+      if (!bancoTransfer?.trim()) { toast.error('Selecciona el banco de la transferencia'); return; }
+      if (!docTransfer?.trim()) { toast.error('Ingresa el N.º de comprobante de la transferencia'); return; }
+    }
     setCobrando(true);
     try {
       const pagos = [];
       if (Number(efectivo) > 0) pagos.push({ metodo: 'efectivo', monto: Number(efectivo) });
       if (Number(transferencia) > 0) pagos.push({
         metodo: 'transferencia', monto: Number(transferencia),
-        banco: bancoTransfer || undefined, documento: docTransfer || undefined, referencia: refTransfer || undefined,
+        banco: bancoTransfer.trim(), documento: docTransfer.trim(), referencia: refTransfer || undefined,
       });
       if (pagos.length === 0) pagos.push({ metodo: 'efectivo', monto: total });
 
@@ -502,11 +506,14 @@ export default function POS() {
             </label>
             {Number(transferencia) > 0 && (
               <div className="pago-transfer">
-                <label>Banco
-                  <SelectorBanco value={bancoTransfer} onChange={setBancoTransfer} />
+                <label>Banco <span className="req">*</span>
+                  <div className={!bancoTransfer?.trim() ? 'campo-falta' : ''}>
+                    <SelectorBanco value={bancoTransfer} onChange={setBancoTransfer} />
+                  </div>
                 </label>
-                <label>N.º de comprobante
-                  <input value={docTransfer} placeholder="N.º de la transferencia"
+                <label>N.º de comprobante <span className="req">*</span>
+                  <input value={docTransfer} placeholder="Obligatorio" required
+                    className={!docTransfer?.trim() ? 'campo-falta' : ''}
                     onChange={(e) => setDocTransfer(e.target.value)} />
                 </label>
                 <label className="ancho">Observación
@@ -523,7 +530,8 @@ export default function POS() {
 
             <div className="modal-acciones">
               <button className="btn-secundario" onClick={() => setModalPago(false)} disabled={cobrando}>Cancelar</button>
-              <button className="btn-primario" onClick={cobrar} disabled={faltante > 0 || cobrando}>
+              <button className="btn-primario" onClick={cobrar}
+                disabled={faltante > 0 || cobrando || (Number(transferencia) > 0 && (!bancoTransfer?.trim() || !docTransfer?.trim()))}>
                 {cobrando ? 'Procesando…' : 'Confirmar cobro'}
               </button>
             </div>

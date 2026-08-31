@@ -131,12 +131,13 @@ router.post('/', requiereRol('admin', 'vendedor'), async (req, res) => {
       totalPagado = redondear2(totalPagado + monto);
       if (metodo === 'efectivo') totalEfectivo = redondear2(totalEfectivo + monto);
       const limpio = (x) => (x ? String(x).trim() || null : null);
-      return {
-        metodo, monto,
-        banco: limpio(p.banco),
-        documento: limpio(p.documento),
-        referencia: limpio(p.referencia),
-      };
+      const banco = limpio(p.banco);
+      const documento = limpio(p.documento);
+      if (metodo === 'transferencia') {
+        if (!banco) throw new ErrorHttp(400, 'Selecciona el banco de la transferencia');
+        if (!documento) throw new ErrorHttp(400, 'Falta el N.º de comprobante de la transferencia');
+      }
+      return { metodo, monto, banco, documento, referencia: limpio(p.referencia) };
     });
 
     if (totalPagado + TOLERANCIA < total) {
