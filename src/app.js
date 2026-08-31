@@ -15,6 +15,7 @@ import ventasRoutes from './routes/ventas.js';
 import reportesRoutes from './routes/reportes.js';
 import comprobantesRoutes from './routes/comprobantes.js';
 import cajasRoutes from './routes/cajas.js';
+import clientesRoutes from './routes/clientes.js';
 import { noEncontrado, manejadorErrores } from './middleware/errores.js';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
@@ -41,6 +42,7 @@ export function crearApp() {
   app.use('/api/reportes', reportesRoutes);
   app.use('/api/comprobantes', comprobantesRoutes);
   app.use('/api/cajas', cajasRoutes);
+  app.use('/api/clientes', clientesRoutes);
 
   // ---- Frontend compilado (en producción se sirve desde el mismo servidor) ----
   if (fs.existsSync(distDir)) {

@@ -207,7 +207,21 @@ ALTER TABLE negocio ADD COLUMN IF NOT EXISTS smtp_remitente_nombre  TEXT;
 ALTER TABLE negocio ADD COLUMN IF NOT EXISTS exigir_caja            BOOLEAN NOT NULL DEFAULT false; -- exigir caja abierta para vender
 
 -- Nota interna opcional por venta (para bases previas)
-ALTER TABLE ventas ADD COLUMN IF NOT EXISTS nota TEXT;
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS nota             TEXT;
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS cliente_telefono TEXT;
+
+-- ---------- Clientes (datos guardados para autocompletar por cédula/RUC) ----------
+CREATE TABLE IF NOT EXISTS clientes (
+  id             SERIAL PRIMARY KEY,
+  identificacion TEXT NOT NULL UNIQUE,     -- cédula (10) o RUC (13)
+  nombre         TEXT NOT NULL,
+  email          TEXT,
+  telefono       TEXT,
+  direccion      TEXT,
+  creado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_clientes_nombre ON clientes(lower(nombre));
 
 -- ---------- Cajas (apertura / cierre / arqueo) ----------
 CREATE TABLE IF NOT EXISTS cajas (

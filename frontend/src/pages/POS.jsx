@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { useToast } from '../components/Toast.jsx';
 import SelectorBanco from '../components/SelectorBanco.jsx';
+import FormularioCliente from '../components/FormularioCliente.jsx';
 import { dinero, redondear2, nombreVariante, imprimirRecibo } from '../util.js';
 
 const LIMITE = 24;
@@ -268,7 +269,7 @@ export default function POS() {
           <span className="tb-ico">🧺</span>Nueva venta
         </button>
         <button className="tb" onClick={() => setModalCliente(true)}>
-          <span className="tb-ico">👤</span>{cliente ? cliente.nombre.split(' ')[0] : 'Cliente'}
+          <span className="tb-ico">👤</span>{cliente?.nombre ? cliente.nombre.split(' ')[0] : 'Cliente'}
         </button>
         <button className="tb" onClick={() => buscadorRef.current?.focus()}>
           <span className="tb-ico">🔎</span>Buscar
@@ -300,7 +301,7 @@ export default function POS() {
             <span>Venta actual</span>
             {cliente && (
               <span className="ticket-cliente" onClick={() => setModalCliente(true)}>
-                {cliente.nombre} ✕
+                {cliente.nombre || cliente.identificacion || 'Cliente'} ✕
               </span>
             )}
           </div>
@@ -462,7 +463,7 @@ export default function POS() {
                   <li key={g.id}>
                     <div>
                       <strong>{dinero(g.total)}</strong>
-                      <span className="g-meta">{g.carrito.length} art. · {new Date(g.ts).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}{g.cliente ? ` · ${g.cliente.nombre}` : ''}</span>
+                      <span className="g-meta">{g.carrito.length} art. · {new Date(g.ts).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}{g.cliente?.nombre ? ` · ${g.cliente.nombre}` : ''}</span>
                     </div>
                     <div className="g-acc">
                       <button className="btn-primario chico" onClick={() => reanudar(g)}>Reanudar</button>
@@ -546,6 +547,14 @@ function ModalAcciones({ venta, negocio, onCerrar, toast }) {
   const [saltar, setSaltar] = useState(localStorage.getItem(CLAVE_SALTAR) === '1');
   const [facturando, setFacturando] = useState(false);
   const [factura, setFactura] = useState(null); // { estado } tras encolar
+  const [modalFacturar, setModalFacturar] = useState(false);
+  const [datosFactura, setDatosFactura] = useState({
+    identificacion: venta.cliente_identificacion || '',
+    nombre: venta.cliente_nombre || '',
+    email: venta.cliente_email || '',
+    telefono: venta.cliente_telefono || '',
+    direccion: venta.cliente_direccion || '',
+  });
 
   function imprimir() {
     if (!imprimirRecibo(negocio, venta)) toast.error('Permite las ventanas emergentes para imprimir');
@@ -553,19 +562,22 @@ function ModalAcciones({ venta, negocio, onCerrar, toast }) {
 
   const sriListo = !!negocio?.tiene_certificado && !!negocio?.ruc;
 
-  async function facturarSri() {
+  function facturarSri() {
     if (!sriListo) {
       toast.error('Primero configura el RUC y el certificado en "Datos del negocio"');
       return;
     }
-    let email = venta.cliente_email || '';
-    if (!email) email = window.prompt('Correo del cliente para enviar la factura (opcional):', '') || '';
+    setModalFacturar(true);
+  }
+
+  async function confirmarFactura() {
     setFacturando(true);
     try {
-      const r = await api.post(`/api/ventas/${venta.id}/facturar`, email ? { email } : {});
+      const r = await api.post(`/api/ventas/${venta.id}/facturar`, { cliente: datosFactura });
       const c = r.comprobante || r;
       setFactura({ estado: c.estado || 'pendiente', num: `${c.estab}-${c.pto_emi}-${c.secuencial}` });
       toast.ok(r.ya_existe ? 'Ya tenía factura en proceso' : 'Factura enviada al SRI (se procesa en segundo plano)');
+      setModalFacturar(false);
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -660,31 +672,75 @@ function ModalAcciones({ venta, negocio, onCerrar, toast }) {
           <button className="btn-primario" onClick={onCerrar}>Hecho</button>
         </div>
       </div>
+
+      {modalFacturar && (
+        <div className="modal-fondo" onClick={() => !facturando && setModalFacturar(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Datos del cliente para la factura</h3>
+            <p className="modal-sub">Escribe la cédula/RUC y se cargan los datos si el cliente ya está guardado.</p>
+            <FormularioCliente value={datosFactura} onChange={setDatosFactura}
+              onEncontrado={(c) => toast.ok(`Cliente encontrado: ${c.nombre}`)} />
+            <div className="modal-acciones">
+              <button className="btn-secundario" onClick={() => setModalFacturar(false)} disabled={facturando}>Cancelar</button>
+              <button className="btn-primario" onClick={confirmarFactura} disabled={facturando}>
+                {facturando ? 'Enviando…' : 'Emitir factura'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function ModalCliente({ cliente, onCerrar, onGuardar, onQuitar }) {
-  const [nombre, setNombre] = useState(cliente?.nombre || '');
-  const [identificacion, setIdentificacion] = useState(cliente?.identificacion || '');
+  const toast = useToast();
+  const [datos, setDatos] = useState({
+    identificacion: cliente?.identificacion || '',
+    nombre: cliente?.nombre || '',
+    email: cliente?.email || '',
+    telefono: cliente?.telefono || '',
+    direccion: cliente?.direccion || '',
+  });
+  const [guardandoLibreta, setGuardandoLibreta] = useState(false);
+
+  async function guardarEnLibreta() {
+    if (!datos.identificacion || !datos.nombre) {
+      toast.error('Para guardar el cliente necesitas cédula/RUC y nombre');
+      return;
+    }
+    setGuardandoLibreta(true);
+    try {
+      await api.put('/api/clientes', datos);
+      toast.ok('Cliente guardado');
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setGuardandoLibreta(false);
+    }
+  }
 
   return (
     <div className="modal-fondo" onClick={onCerrar}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>Cliente de la venta</h3>
-        <p className="modal-sub">Opcional. Se usará para la factura electrónica (Fase SRI).</p>
-        <label>Nombre
-          <input value={nombre} autoFocus onChange={(e) => setNombre(e.target.value)} placeholder="Consumidor final" />
-        </label>
-        <label>Cédula / RUC
-          <input value={identificacion} onChange={(e) => setIdentificacion(e.target.value)} placeholder="0999999999" />
-        </label>
-        <div className="modal-acciones">
-          {cliente && <button className="btn-texto peligro" onClick={onQuitar}>Quitar cliente</button>}
-          <button className="btn-secundario" onClick={onCerrar}>Cancelar</button>
-          <button className="btn-primario" onClick={() => onGuardar({ nombre: nombre.trim() || 'Consumidor final', identificacion: identificacion.trim() })}>
-            Guardar
+        <p className="modal-sub">Opcional. Se usa para la factura electrónica. Al escribir la cédula/RUC se cargan los datos guardados.</p>
+
+        <FormularioCliente value={datos} onChange={setDatos}
+          onEncontrado={(c) => toast.ok(`Cliente encontrado: ${c.nombre}`)} />
+
+        <div className="modal-acciones" style={{ justifyContent: 'space-between' }}>
+          <button className="btn-secundario chico" onClick={guardarEnLibreta} disabled={guardandoLibreta}>
+            {guardandoLibreta ? 'Guardando…' : '💾 Guardar cliente'}
           </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {cliente && <button className="btn-texto peligro" onClick={onQuitar}>Quitar</button>}
+            <button className="btn-secundario" onClick={onCerrar}>Cancelar</button>
+            <button className="btn-primario" onClick={() => onGuardar({
+              ...datos,
+              nombre: datos.nombre.trim() || 'Consumidor final',
+            })}>Usar</button>
+          </div>
         </div>
       </div>
     </div>

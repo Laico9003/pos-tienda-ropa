@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { useToast } from '../components/Toast.jsx';
+import FormularioCliente from '../components/FormularioCliente.jsx';
 import { BANCOS_EC } from '../constants.js';
 import { dinero, fecha } from '../util.js';
 
@@ -30,6 +31,8 @@ function ListaVentas() {
   const [desde, setDesde] = useState(haceISO(7));
   const [hasta, setHasta] = useState(hoyISO());
   const [detalle, setDetalle] = useState(null);
+  const [modalFactura, setModalFactura] = useState(null); // datos del cliente para facturar
+  const [facturando, setFacturando] = useState(false);
 
   async function cargar() {
     try {
@@ -52,14 +55,24 @@ function ListaVentas() {
       setDetalle(null); cargar();
     } catch (e) { toast.error(e.message); }
   }
-  async function facturar() {
-    let email = detalle.cliente_email || '';
-    if (!email) email = prompt('Correo del cliente (opcional):', '') || '';
+  function facturar() {
+    setModalFactura({
+      identificacion: detalle.cliente_identificacion || '',
+      nombre: detalle.cliente_nombre || '',
+      email: detalle.cliente_email || '',
+      telefono: detalle.cliente_telefono || '',
+      direccion: detalle.cliente_direccion || '',
+    });
+  }
+  async function confirmarFactura() {
+    setFacturando(true);
     try {
-      await api.post(`/api/ventas/${detalle.id}/facturar`, email ? { email } : {});
+      await api.post(`/api/ventas/${detalle.id}/facturar`, { cliente: modalFactura });
       toast.ok('Factura enviada al SRI (se procesa en segundo plano)');
+      setModalFactura(null);
       verDetalle(detalle.id);
     } catch (e) { toast.error(e.message); }
+    finally { setFacturando(false); }
   }
   async function toggleVerificado(pago) {
     try {
@@ -171,6 +184,23 @@ function ListaVentas() {
                 <button className="btn-texto peligro" onClick={anular}>Anular venta</button>
               )}
               <button className="btn-secundario" onClick={() => setDetalle(null)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalFactura && (
+        <div className="modal-fondo" onClick={() => !facturando && setModalFactura(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Datos del cliente para la factura</h3>
+            <p className="modal-sub">Escribe la cédula/RUC y se cargan los datos si el cliente ya está guardado.</p>
+            <FormularioCliente value={modalFactura} onChange={setModalFactura}
+              onEncontrado={(c) => toast.ok(`Cliente encontrado: ${c.nombre}`)} />
+            <div className="modal-acciones">
+              <button className="btn-secundario" onClick={() => setModalFactura(null)} disabled={facturando}>Cancelar</button>
+              <button className="btn-primario" onClick={confirmarFactura} disabled={facturando}>
+                {facturando ? 'Enviando…' : 'Emitir factura'}
+              </button>
             </div>
           </div>
         </div>

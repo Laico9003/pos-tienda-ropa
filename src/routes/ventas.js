@@ -3,6 +3,7 @@ import { consulta, conTransaccion } from '../db/pool.js';
 import { autenticar, requiereRol, tiendaObjetivo } from '../middleware/auth.js';
 import { ErrorHttp } from '../middleware/errores.js';
 import { aNumero, aEntero, redondear2 } from '../utils/validacion.js';
+import { upsertCliente } from './clientes.js';
 
 const router = Router();
 router.use(autenticar);
@@ -150,16 +151,17 @@ router.post('/', requiereRol('admin', 'vendedor'), async (req, res) => {
     const { rows: vr } = await cli.query(
       `INSERT INTO ventas
          (tienda_id, usuario_id, cliente_nombre, cliente_identificacion, cliente_email, cliente_direccion,
-          subtotal, descuento_total, total, total_pagado, cambio, caja_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          cliente_telefono, subtotal, descuento_total, total, total_pagado, cambio, caja_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         tiendaId,
         req.usuario.id,
         cliente.nombre ? String(cliente.nombre).trim() : null,
-        cliente.identificacion ? String(cliente.identificacion).trim() : null,
+        cliente.identificacion ? String(cliente.identificacion).replace(/\D/g, '').slice(0, 13) || null : null,
         cliente.email ? String(cliente.email).trim() : null,
         cliente.direccion ? String(cliente.direccion).trim() : null,
+        cliente.telefono ? String(cliente.telefono).trim() : null,
         subtotal,
         descuentoTotal,
         total,
@@ -213,6 +215,10 @@ router.post('/', requiereRol('admin', 'vendedor'), async (req, res) => {
 
   res.status(201).json(venta);
 
+  // Guarda/actualiza el cliente para autocompletar la próxima vez (sin bloquear).
+  if (cliente.identificacion) {
+    upsertCliente(cliente).catch((e) => console.error('[cliente]', e.message));
+  }
   // Factura electrónica automática (si está activada), sin bloquear la respuesta.
   encolarFacturaAuto(venta.id).catch((e) => console.error('[SRI auto]', e.message));
 });
@@ -402,7 +408,7 @@ router.put('/pagos/:pagoId/verificado', requiereRol('admin', 'vendedor'), async 
 
 // ---------------------------------------------------------------------------
 // POST /api/ventas/:id/facturar  — encola la factura electrónica (Fase SRI)
-//   body opcional: { email }  (si el cliente no tenía correo)
+//   body opcional: { email } o { cliente: { identificacion, nombre, email, telefono, direccion } }
 // ---------------------------------------------------------------------------
 router.post('/:id/facturar', requiereRol('admin', 'vendedor'), async (req, res) => {
   const { rows: vr } = await consulta(
@@ -422,6 +428,24 @@ router.post('/:id/facturar', requiereRol('admin', 'vendedor'), async (req, res) 
     throw new ErrorHttp(400, 'Configura el RUC y el certificado .p12 en "Datos del negocio" antes de facturar');
   }
 
+  // Si vienen datos del cliente, se guardan en la venta y en la libreta de clientes.
+  const cli = req.body.cliente;
+  if (cli && (cli.identificacion || cli.nombre)) {
+    const idLimpia = cli.identificacion ? String(cli.identificacion).replace(/\D/g, '').slice(0, 13) : null;
+    await consulta(
+      `UPDATE ventas SET
+         cliente_identificacion = COALESCE($2, cliente_identificacion),
+         cliente_nombre         = COALESCE($3, cliente_nombre),
+         cliente_email          = COALESCE($4, cliente_email),
+         cliente_telefono       = COALESCE($5, cliente_telefono),
+         cliente_direccion      = COALESCE($6, cliente_direccion)
+       WHERE id = $1`,
+      [venta.id, idLimpia, cli.nombre || null, cli.email || null, cli.telefono || null, cli.direccion || null],
+    );
+    venta.cliente_email = cli.email || venta.cliente_email;
+    upsertCliente({ ...cli, identificacion: idLimpia }).catch((e) => console.error('[cliente]', e.message));
+  }
+
   // ¿Ya existe un comprobante utilizable?
   const { rows: ex } = await consulta(
     `SELECT * FROM comprobantes_sri WHERE venta_id = $1 ORDER BY id DESC LIMIT 1`, [venta.id],
@@ -430,7 +454,7 @@ router.post('/:id/facturar', requiereRol('admin', 'vendedor'), async (req, res) 
     return res.status(200).json({ ya_existe: true, comprobante: ex[0] });
   }
 
-  const emailDestino = (req.body.email || venta.cliente_email || '').trim() || null;
+  const emailDestino = (req.body.email || req.body.cliente?.email || venta.cliente_email || '').trim() || null;
   const ambiente = neg[0].ambiente_sri === 'produccion' ? '2' : '1';
 
   const comprobante = await conTransaccion(async (cli) => {
