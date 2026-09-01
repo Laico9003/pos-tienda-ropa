@@ -1,3 +1,4 @@
+import dnsp from 'node:dns/promises';
 import { signInvoiceXml } from 'ec-sri-invoice-signer';
 import nodemailer from 'nodemailer';
 import { consulta } from '../db/pool.js';
@@ -134,14 +135,23 @@ async function enviarCorreo({ negocio, venta, items, pagos, comp }) {
   const { resumen } = construirFactura({ venta, items, pagos, negocio, comprobante: comp });
   const pdf = await generarRidePDF({ negocio, venta: { ...venta, items, pagos }, comprobante: comp, resumen });
 
+  // Railway no rutea IPv6 saliente: resolvemos el host a una IP v4 y la usamos directamente,
+  // manteniendo el nombre real para la validación del certificado TLS.
+  let hostConexion = negocio.smtp_host;
+  try {
+    const { address } = await dnsp.lookup(negocio.smtp_host, { family: 4 });
+    if (address) hostConexion = address;
+  } catch { /* si falla la resolución, se usa el nombre tal cual */ }
+
   const transport = nodemailer.createTransport({
-    host: negocio.smtp_host,
+    host: hostConexion,
     port: Number(negocio.smtp_port) || 587,
     secure: !!negocio.smtp_seguro,
     auth: negocio.smtp_usuario ? { user: negocio.smtp_usuario, pass: descifrar(negocio.smtp_clave_cif) } : undefined,
-    family: 4,                       // fuerza IPv4 (Railway no rutea IPv6 saliente)
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
+    family: 4,
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+    tls: { servername: negocio.smtp_host },
   });
 
   const adjuntos = [{ filename: `factura-${comp.secuencial}.pdf`, content: pdf }];
