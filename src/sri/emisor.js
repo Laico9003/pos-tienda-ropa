@@ -1,6 +1,7 @@
 import dnsp from 'node:dns/promises';
 import { signInvoiceXml } from 'ec-sri-invoice-signer';
 import nodemailer from 'nodemailer';
+import MailComposer from 'nodemailer/lib/mail-composer/index.js';
 import { consulta } from '../db/pool.js';
 import { descifrar } from './cifrado.js';
 import { construirFactura } from './construirFactura.js';
@@ -114,7 +115,9 @@ export async function procesarComprobante(comp) {
     }
 
     // ---------- 4. Enviar RIDE por correo ----------
-    const usaApiCorreo = ['brevo', 'smtp2go'].includes(negocio.email_proveedor) && !!negocio.email_api_key_cif;
+    const usaApiCorreo =
+      (['brevo', 'smtp2go'].includes(negocio.email_proveedor) && !!negocio.email_api_key_cif) ||
+      (negocio.email_proveedor === 'gmail' && !!negocio.gmail_refresh_token_cif);
     const hayCorreoSaliente = usaApiCorreo || !!negocio.smtp_host;
     if (comp.estado === 'autorizada' && !comp.correo_enviado && comp.correo_destino && hayCorreoSaliente) {
       try {
@@ -145,7 +148,9 @@ async function enviarCorreo({ negocio, venta, items, pagos, comp }) {
   const adjuntos = [{ nombre: `factura-${comp.secuencial}.pdf`, pdf }];
   if (comp.xml_autorizado) adjuntos.push({ nombre: `factura-${comp.secuencial}.xml`, xml: comp.xml_autorizado });
 
-  if (negocio.email_proveedor === 'smtp2go' && negocio.email_api_key_cif) {
+  if (negocio.email_proveedor === 'gmail' && negocio.gmail_refresh_token_cif) {
+    await enviarPorGmailApi({ negocio, comp, asunto, texto, remitente, remitenteNombre, adjuntos });
+  } else if (negocio.email_proveedor === 'smtp2go' && negocio.email_api_key_cif) {
     await enviarPorSmtp2go({ negocio, comp, asunto, texto, remitente, remitenteNombre, adjuntos });
   } else if (negocio.email_proveedor === 'brevo' && negocio.email_api_key_cif) {
     await enviarPorBrevo({ negocio, comp, asunto, texto, remitente, remitenteNombre, adjuntos });
@@ -153,6 +158,65 @@ async function enviarCorreo({ negocio, venta, items, pagos, comp }) {
     await enviarPorSmtp({ negocio, comp, asunto, texto, remitente, remitenteNombre, adjuntos });
   } else {
     throw new Error('No hay correo saliente configurado en Datos del negocio');
+  }
+}
+
+/**
+ * Envío por la API HTTPS de Gmail (OAuth2). No necesita dominio propio ni SMTP:
+ * usa la cuenta de Google del negocio. Railway no bloquea googleapis.com (443).
+ */
+async function enviarPorGmailApi({ negocio, comp, asunto, texto, remitente, remitenteNombre, adjuntos }) {
+  const clientId = negocio.gmail_client_id;
+  const clientSecret = descifrar(negocio.gmail_client_secret_cif);
+  const refreshToken = descifrar(negocio.gmail_refresh_token_cif);
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error('Faltan credenciales de Gmail (client ID, client secret o refresh token)');
+  }
+
+  // 1. refresh token -> access token
+  const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+  const tokenJson = await tokenResp.json().catch(() => ({}));
+  if (!tokenResp.ok || !tokenJson.access_token) {
+    throw new Error(`Gmail OAuth ${tokenResp.status}: ${tokenJson.error_description || tokenJson.error || 'no se pudo renovar el token'}`);
+  }
+
+  // 2. construir el mensaje MIME (con adjuntos) y codificarlo en base64url
+  const mail = new MailComposer({
+    from: remitenteNombre ? `"${remitenteNombre}" <${remitente}>` : remitente,
+    to: comp.correo_destino,
+    subject: asunto,
+    text: texto,
+    attachments: adjuntos.map((a) => (
+      a.pdf
+        ? { filename: a.nombre, content: a.pdf, contentType: 'application/pdf' }
+        : { filename: a.nombre, content: a.xml, contentType: 'application/xml' }
+    )),
+  });
+  const mime = await new Promise((res, rej) => {
+    mail.compile().build((err, msg) => (err ? rej(err) : res(msg)));
+  });
+  const raw = mime.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+  // 3. enviar
+  const sendResp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${tokenJson.access_token}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ raw }),
+  });
+  if (!sendResp.ok) {
+    throw new Error(`Gmail API ${sendResp.status}: ${(await sendResp.text()).slice(0, 300)}`);
   }
 }
 

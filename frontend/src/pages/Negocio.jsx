@@ -13,8 +13,9 @@ const VACIO = {
   email_proveedor: 'smtp',
   smtp_host: '', smtp_port: 587, smtp_seguro: false, smtp_usuario: '',
   smtp_remitente: '', smtp_remitente_nombre: '',
+  gmail_client_id: '',
   tiene_certificado: false, certificado_nombre: null, tiene_smtp_clave: false,
-  tiene_email_api_key: false,
+  tiene_email_api_key: false, tiene_gmail_secret: false, tiene_gmail_refresh: false,
 };
 
 const leerArchivoBase64 = (file) => new Promise((res, rej) => {
@@ -37,6 +38,8 @@ export default function Negocio() {
   const [p12Clave, setP12Clave] = useState('');
   const [smtpClave, setSmtpClave] = useState('');
   const [emailApiKey, setEmailApiKey] = useState('');
+  const [gmailSecret, setGmailSecret] = useState('');
+  const [gmailRefresh, setGmailRefresh] = useState('');
 
   function cargar() {
     api.get('/api/negocio').then((n) => setF({ ...VACIO, ...n })).catch((e) => toast.error(e.message));
@@ -67,16 +70,19 @@ export default function Negocio() {
         precios_incluyen_iva: !!f.precios_incluyen_iva,
         emitir_factura_auto: !!f.emitir_factura_auto,
         exigir_caja: !!f.exigir_caja,
-        email_proveedor: ['brevo', 'smtp2go'].includes(f.email_proveedor) ? f.email_proveedor : 'smtp',
+        email_proveedor: ['brevo', 'smtp2go', 'gmail'].includes(f.email_proveedor) ? f.email_proveedor : 'smtp',
         smtp_host: f.smtp_host?.trim() || null,
         smtp_port: Number(f.smtp_port) || 587,
         smtp_seguro: !!f.smtp_seguro,
         smtp_usuario: f.smtp_usuario?.trim() || null,
         smtp_remitente: f.smtp_remitente?.trim() || null,
         smtp_remitente_nombre: f.smtp_remitente_nombre?.trim() || null,
+        gmail_client_id: f.gmail_client_id?.trim() || null,
       };
       if (smtpClave) cuerpo.smtp_clave = smtpClave;
       if (emailApiKey) cuerpo.email_api_key = emailApiKey;
+      if (gmailSecret) cuerpo.gmail_client_secret = gmailSecret;
+      if (gmailRefresh) cuerpo.gmail_refresh_token = gmailRefresh;
       if (p12) {
         cuerpo.certificado_p12 = p12.base64;
         cuerpo.certificado_clave = p12Clave;
@@ -86,7 +92,7 @@ export default function Negocio() {
       const actualizado = await api.put('/api/negocio', cuerpo);
       setNegocio(actualizado);
       setF({ ...VACIO, ...actualizado });
-      setP12(null); setP12Clave(''); setSmtpClave(''); setEmailApiKey('');
+      setP12(null); setP12Clave(''); setSmtpClave(''); setEmailApiKey(''); setGmailSecret(''); setGmailRefresh('');
       if (p12Ref.current) p12Ref.current.value = '';
       toast.ok('Datos del negocio guardados');
     } catch (e) {
@@ -246,18 +252,52 @@ export default function Negocio() {
 
         <label>Cómo se envían los correos
           <select value={f.email_proveedor || 'smtp'} onChange={(e) => set('email_proveedor', e.target.value)}>
-            <option value="smtp2go">SMTP2GO (API HTTPS) — recomendado para la nube (Railway)</option>
+            <option value="gmail">API de Gmail — recomendado (tu cuenta actual, sin dominio ni SMS)</option>
+            <option value="smtp2go">SMTP2GO (API HTTPS)</option>
             <option value="brevo">Brevo (API HTTPS)</option>
             <option value="smtp">Servidor SMTP propio / VPS</option>
           </select>
         </label>
         <p className="nota-min">
-          Railway y la mayoría de servicios en la nube bloquean el envío por SMTP (puertos 25/465/587).
-          Con <strong>SMTP2GO</strong> o <strong>Brevo</strong> los correos salen por una API HTTPS: registro gratuito,
-          sin necesidad de dominio propio.
+          Railway y la mayoría de servicios en la nube bloquean el envío por SMTP (puertos 25/465/587),
+          por eso se usa una API HTTPS. La <strong>API de Gmail</strong> funciona con tu propia cuenta de Google
+          (sin dominio propio ni verificación por SMS); requiere una configuración inicial de una sola vez.
         </p>
 
-        {(f.email_proveedor === 'smtp2go' || f.email_proveedor === 'brevo') ? (
+        {f.email_proveedor === 'gmail' ? (
+          <>
+            <div className="form-grid">
+              <label>Client ID de OAuth
+                <input value={f.gmail_client_id} onChange={(e) => set('gmail_client_id', e.target.value)}
+                  placeholder="1234567890-abc...apps.googleusercontent.com" autoComplete="off" />
+              </label>
+              <label>Client secret {f.tiene_gmail_secret && <span className="estado completada">guardado</span>}
+                <input type="password" value={gmailSecret} onChange={(e) => setGmailSecret(e.target.value)}
+                  placeholder={f.tiene_gmail_secret ? '••••••••' : 'GOCSPX-...'} autoComplete="new-password" />
+              </label>
+              <label>Refresh token {f.tiene_gmail_refresh && <span className="estado completada">guardado</span>}
+                <input type="password" value={gmailRefresh} onChange={(e) => setGmailRefresh(e.target.value)}
+                  placeholder={f.tiene_gmail_refresh ? '••••••••' : '1//0g...'} autoComplete="new-password" />
+              </label>
+              <label>Remitente (tu dirección de Gmail)
+                <input value={f.smtp_remitente} onChange={(e) => set('smtp_remitente', e.target.value)} placeholder="tucorreo@gmail.com" />
+              </label>
+              <label>Nombre del remitente
+                <input value={f.smtp_remitente_nombre} onChange={(e) => set('smtp_remitente_nombre', e.target.value)} placeholder="Boutique Carmen" />
+              </label>
+            </div>
+            <ol className="nota-min" style={{ paddingLeft: 18, lineHeight: 1.6 }}>
+              <li>En <strong>console.cloud.google.com</strong> crea un proyecto nuevo.</li>
+              <li><strong>APIs y servicios → Biblioteca</strong>: busca <strong>Gmail API</strong> y pulsa <strong>Habilitar</strong>.</li>
+              <li><strong>APIs y servicios → Pantalla de consentimiento de OAuth</strong>: tipo <em>Externo</em>, completa nombre y correos, añade el permiso <code>.../auth/gmail.send</code>, agrégate como usuario de prueba y luego pulsa <strong>Publicar la aplicación</strong> (así el token no caduca a los 7 días).</li>
+              <li><strong>APIs y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth</strong>, tipo <em>Aplicación web</em>. En <em>URIs de redireccionamiento autorizados</em> agrega <code>https://developers.google.com/oauthplayground</code>. Copia el <strong>Client ID</strong> y el <strong>Client secret</strong> aquí arriba.</li>
+              <li>Abre <strong>developers.google.com/oauthplayground</strong> → engranaje (arriba der.) → marca <em>Use your own OAuth credentials</em> y pega el Client ID y el secret.</li>
+              <li>En el recuadro izquierdo escribe <code>https://www.googleapis.com/auth/gmail.send</code> → <strong>Authorize APIs</strong> → inicia sesión con tu Gmail y acepta (si sale aviso de "app no verificada", continúa).</li>
+              <li>Pulsa <strong>Exchange authorization code for tokens</strong> y copia el <strong>Refresh token</strong> aquí arriba.</li>
+              <li>Guarda. Las facturas autorizadas se enviarán solas; las pendientes se reintentan cada pocos segundos.</li>
+            </ol>
+          </>
+        ) : (f.email_proveedor === 'smtp2go' || f.email_proveedor === 'brevo') ? (
           <>
             <div className="form-grid">
               <label>

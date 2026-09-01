@@ -16,23 +16,29 @@ const CAMPOS = [
   'iva_porcentaje', 'precios_incluyen_iva', 'emitir_factura_auto',
   'obligado_contabilidad', 'ambiente_sri', 'exigir_caja',
   'smtp_host', 'smtp_port', 'smtp_seguro', 'smtp_usuario', 'smtp_remitente', 'smtp_remitente_nombre',
-  'email_proveedor',
+  'email_proveedor', 'gmail_client_id',
 ];
 const ANULABLES = new Set([
   'razon_social', 'ruc', 'direccion', 'telefono', 'email', 'logo_url', 'mensaje_recibo',
   'dir_matriz', 'nombre_comercial', 'contribuyente_especial',
-  'smtp_host', 'smtp_usuario', 'smtp_remitente', 'smtp_remitente_nombre',
+  'smtp_host', 'smtp_usuario', 'smtp_remitente', 'smtp_remitente_nombre', 'gmail_client_id',
 ]);
 
-// No se devuelven al frontend (secretos): certificado_p12, certificado_clave_cif, smtp_clave_cif, email_api_key_cif
+// No se devuelven al frontend (secretos): certificado_p12, certificado_clave_cif,
+// smtp_clave_cif, email_api_key_cif, gmail_client_secret_cif, gmail_refresh_token_cif
 function limpiarNegocio(n) {
   if (!n) return {};
-  const { certificado_p12, certificado_clave_cif, smtp_clave_cif, email_api_key_cif, ...resto } = n;
+  const {
+    certificado_p12, certificado_clave_cif, smtp_clave_cif, email_api_key_cif,
+    gmail_client_secret_cif, gmail_refresh_token_cif, ...resto
+  } = n;
   return {
     ...resto,
     tiene_certificado: !!certificado_p12,
     tiene_smtp_clave: !!smtp_clave_cif,
     tiene_email_api_key: !!email_api_key_cif,
+    tiene_gmail_secret: !!gmail_client_secret_cif,
+    tiene_gmail_refresh: !!gmail_refresh_token_cif,
   };
 }
 
@@ -58,7 +64,7 @@ router.put('/', requiereRol('admin'), async (req, res) => {
     }
     if (campo === 'email_proveedor') {
       v = String(v || 'smtp').trim().toLowerCase();
-      if (!['smtp', 'brevo', 'smtp2go'].includes(v)) v = 'smtp';
+      if (!['smtp', 'brevo', 'smtp2go', 'gmail'].includes(v)) v = 'smtp';
     }
     if (ANULABLES.has(campo)) v = v || null;
     valores.push(v);
@@ -98,13 +104,31 @@ router.put('/', requiereRol('admin'), async (req, res) => {
     }
   }
 
-  // Clave API de Brevo (solo si viene; cadena vacía = quitar)
+  // Clave API de Brevo / SMTP2GO (solo si viene; cadena vacía = quitar)
   if (req.body.email_api_key !== undefined) {
     if (req.body.email_api_key) {
       valores.push(cifrar(String(req.body.email_api_key).trim()));
       sets.push(`email_api_key_cif = $${valores.length}`);
     } else {
       sets.push('email_api_key_cif = NULL');
+    }
+  }
+
+  // Credenciales OAuth de Gmail (client secret y refresh token; cadena vacía = quitar)
+  if (req.body.gmail_client_secret !== undefined) {
+    if (req.body.gmail_client_secret) {
+      valores.push(cifrar(String(req.body.gmail_client_secret).trim()));
+      sets.push(`gmail_client_secret_cif = $${valores.length}`);
+    } else {
+      sets.push('gmail_client_secret_cif = NULL');
+    }
+  }
+  if (req.body.gmail_refresh_token !== undefined) {
+    if (req.body.gmail_refresh_token) {
+      valores.push(cifrar(String(req.body.gmail_refresh_token).trim()));
+      sets.push(`gmail_refresh_token_cif = $${valores.length}`);
+    } else {
+      sets.push('gmail_refresh_token_cif = NULL');
     }
   }
 
