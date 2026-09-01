@@ -1,4 +1,5 @@
 import { generarClaveAcceso } from './claveAcceso.js';
+import { fechaEmisionEC } from './fecha.js';
 
 const COD_PORCENTAJE_IVA = { 0: '0', 5: '5', 12: '2', 13: '10', 14: '8', 15: '4' };
 const FORMA_PAGO = { efectivo: '01', transferencia: '20', tarjeta: '19' };
@@ -25,7 +26,7 @@ export function construirFactura({ venta, items, pagos, negocio, comprobante }) 
   const incluyeIva = negocio.precios_incluyen_iva !== false;
 
   const fecha = new Date(venta.creado_en || Date.now());
-  const fechaEmision = `${String(fecha.getDate()).padStart(2, '0')}/${String(fecha.getMonth() + 1).padStart(2, '0')}/${fecha.getFullYear()}`;
+  const fechaEmision = fechaEmisionEC(fecha); // dd/mm/yyyy en hora de Ecuador
 
   // ---- Ajuste del descuento global: se reparte proporcionalmente en las líneas ----
   const subtotal = Number(venta.subtotal) || items.reduce((s, it) => s + Number(it.total_linea), 0);

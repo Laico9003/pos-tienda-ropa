@@ -2,11 +2,9 @@
 //   ddmmyyyy(8) + codDoc(2) + ruc(13) + ambiente(1) + serie=estab+ptoEmi(6)
 //   + secuencial(9) + codigoNumerico(8) + tipoEmision(1) + digitoVerificador(1)
 
-function ddmmyyyy(fecha) {
-  const d = String(fecha.getDate()).padStart(2, '0');
-  const m = String(fecha.getMonth() + 1).padStart(2, '0');
-  return `${d}${m}${fecha.getFullYear()}`;
-}
+import { ddmmyyyyEC } from './fecha.js';
+
+const ddmmyyyy = (fecha) => ddmmyyyyEC(fecha); // siempre en hora de Ecuador
 
 /** Dígito verificador por módulo 11, pesos 7..2 cíclicos. */
 export function digitoVerificador(clave48) {
