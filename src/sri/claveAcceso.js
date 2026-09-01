@@ -40,10 +40,11 @@ export function generarClaveAcceso(o) {
     .padStart(8, '0')
     .slice(0, 8);
   const tipoEmision = o.tipoEmision || '1';
+  const ruc13 = String(o.ruc || '').replace(/\D/g, '').padStart(13, '0').slice(-13); // exactamente 13 dígitos
   const base =
     ddmmyyyy(o.fecha) +
     o.codDoc +
-    String(o.ruc).padStart(13, '0') +
+    ruc13 +
     o.ambiente +
     String(o.estab).padStart(3, '0') +
     String(o.ptoEmi).padStart(3, '0') +

@@ -138,7 +138,11 @@ export default function Negocio() {
             <input value={f.razon_social} onChange={(e) => set('razon_social', e.target.value)} placeholder="BELECELA GUAPI JOSE DANIEL" />
           </label>
           <label>RUC
-            <input value={f.ruc} onChange={(e) => set('ruc', e.target.value)} placeholder="2100814264001" />
+            <input value={f.ruc} inputMode="numeric" maxLength={13} placeholder="2100814264001 (13 dígitos)"
+              onChange={(e) => set('ruc', e.target.value.replace(/\D/g, '').slice(0, 13))} />
+            {f.ruc && f.ruc.length !== 13 && (
+              <span className="nota-min peligro-txt">El RUC tiene 13 dígitos ({f.ruc.length} ahora). El RUC de persona natural = cédula + "001".</span>
+            )}
           </label>
           <label>Teléfono
             <input value={f.telefono} onChange={(e) => set('telefono', e.target.value)} placeholder="099 999 9999" />

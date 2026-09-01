@@ -48,6 +48,12 @@ router.put('/', requiereRol('admin'), async (req, res) => {
   for (const campo of CAMPOS) {
     if (req.body[campo] === undefined) continue;
     let v = req.body[campo];
+    if (campo === 'ruc' && v) {
+      v = String(v).replace(/\D/g, '');
+      if (v.length !== 13) {
+        throw new ErrorHttp(400, `El RUC debe tener 13 dígitos (recibí ${v.length}). El RUC de persona natural es la cédula + "001".`);
+      }
+    }
     if (ANULABLES.has(campo)) v = v || null;
     valores.push(v);
     sets.push(`${campo} = $${valores.length}`);
