@@ -204,9 +204,12 @@ ALTER TABLE negocio ADD COLUMN IF NOT EXISTS smtp_usuario           TEXT;
 ALTER TABLE negocio ADD COLUMN IF NOT EXISTS smtp_clave_cif         TEXT;      -- contraseña SMTP (AES-GCM)
 ALTER TABLE negocio ADD COLUMN IF NOT EXISTS smtp_remitente         TEXT;
 ALTER TABLE negocio ADD COLUMN IF NOT EXISTS smtp_remitente_nombre  TEXT;
-ALTER TABLE negocio ADD COLUMN IF NOT EXISTS email_proveedor        TEXT NOT NULL DEFAULT 'smtp'
-  CHECK (email_proveedor IN ('smtp', 'brevo'));
-ALTER TABLE negocio ADD COLUMN IF NOT EXISTS email_api_key_cif      TEXT;    -- clave API (Brevo), cifrada
+ALTER TABLE negocio ADD COLUMN IF NOT EXISTS email_proveedor        TEXT NOT NULL DEFAULT 'smtp';
+-- recreación idempotente del CHECK (permite añadir proveedores sin bloquear bases previas)
+ALTER TABLE negocio DROP CONSTRAINT IF EXISTS negocio_email_proveedor_check;
+ALTER TABLE negocio ADD  CONSTRAINT negocio_email_proveedor_check
+  CHECK (email_proveedor IN ('smtp', 'brevo', 'smtp2go'));
+ALTER TABLE negocio ADD COLUMN IF NOT EXISTS email_api_key_cif      TEXT;    -- clave API (Brevo / SMTP2GO), cifrada
 ALTER TABLE negocio ADD COLUMN IF NOT EXISTS exigir_caja            BOOLEAN NOT NULL DEFAULT false; -- exigir caja abierta para vender
 
 -- Nota interna opcional por venta (para bases previas)

@@ -58,7 +58,7 @@ router.put('/', requiereRol('admin'), async (req, res) => {
     }
     if (campo === 'email_proveedor') {
       v = String(v || 'smtp').trim().toLowerCase();
-      if (!['smtp', 'brevo'].includes(v)) v = 'smtp';
+      if (!['smtp', 'brevo', 'smtp2go'].includes(v)) v = 'smtp';
     }
     if (ANULABLES.has(campo)) v = v || null;
     valores.push(v);

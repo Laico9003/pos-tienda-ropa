@@ -114,7 +114,8 @@ export async function procesarComprobante(comp) {
     }
 
     // ---------- 4. Enviar RIDE por correo ----------
-    const hayCorreoSaliente = (negocio.email_proveedor === 'brevo' && negocio.email_api_key_cif) || !!negocio.smtp_host;
+    const usaApiCorreo = ['brevo', 'smtp2go'].includes(negocio.email_proveedor) && !!negocio.email_api_key_cif;
+    const hayCorreoSaliente = usaApiCorreo || !!negocio.smtp_host;
     if (comp.estado === 'autorizada' && !comp.correo_enviado && comp.correo_destino && hayCorreoSaliente) {
       try {
         await enviarCorreo({ negocio, venta, items, pagos, comp });
@@ -144,12 +145,45 @@ async function enviarCorreo({ negocio, venta, items, pagos, comp }) {
   const adjuntos = [{ nombre: `factura-${comp.secuencial}.pdf`, pdf }];
   if (comp.xml_autorizado) adjuntos.push({ nombre: `factura-${comp.secuencial}.xml`, xml: comp.xml_autorizado });
 
-  if (negocio.email_proveedor === 'brevo' && negocio.email_api_key_cif) {
+  if (negocio.email_proveedor === 'smtp2go' && negocio.email_api_key_cif) {
+    await enviarPorSmtp2go({ negocio, comp, asunto, texto, remitente, remitenteNombre, adjuntos });
+  } else if (negocio.email_proveedor === 'brevo' && negocio.email_api_key_cif) {
     await enviarPorBrevo({ negocio, comp, asunto, texto, remitente, remitenteNombre, adjuntos });
   } else if (negocio.smtp_host) {
     await enviarPorSmtp({ negocio, comp, asunto, texto, remitente, remitenteNombre, adjuntos });
   } else {
     throw new Error('No hay correo saliente configurado en Datos del negocio');
+  }
+}
+
+/** Envío por API HTTPS de SMTP2GO (registro sin teléfono ni dominio; funciona en Railway). */
+async function enviarPorSmtp2go({ negocio, comp, asunto, texto, remitente, remitenteNombre, adjuntos }) {
+  if (!remitente) throw new Error('Falta el correo remitente (verificado en SMTP2GO)');
+  const sender = remitenteNombre ? `${remitenteNombre} <${remitente}>` : remitente;
+  const resp = await fetch('https://api.smtp2go.com/v3/email/send', {
+    method: 'POST',
+    headers: {
+      'X-Smtp2go-Api-Key': descifrar(negocio.email_api_key_cif),
+      'content-type': 'application/json',
+      accept: 'application/json',
+    },
+    body: JSON.stringify({
+      sender,
+      to: [comp.correo_destino],
+      subject: asunto,
+      text_body: texto,
+      attachments: adjuntos.map((a) => ({
+        filename: a.nombre,
+        fileblob: (a.pdf || Buffer.from(a.xml, 'utf8')).toString('base64'),
+        mimetype: a.pdf ? 'application/pdf' : 'application/xml',
+      })),
+    }),
+  });
+  const j = await resp.json().catch(() => ({}));
+  const data = j.data || {};
+  if (!resp.ok || data.error || Number(data.succeeded || 0) < 1) {
+    const detalle = data.error || data.error_code || (data.failures && JSON.stringify(data.failures)) || JSON.stringify(j).slice(0, 300);
+    throw new Error(`SMTP2GO ${resp.status}: ${detalle}`);
   }
 }
 

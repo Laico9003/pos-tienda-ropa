@@ -67,7 +67,7 @@ export default function Negocio() {
         precios_incluyen_iva: !!f.precios_incluyen_iva,
         emitir_factura_auto: !!f.emitir_factura_auto,
         exigir_caja: !!f.exigir_caja,
-        email_proveedor: f.email_proveedor === 'brevo' ? 'brevo' : 'smtp',
+        email_proveedor: ['brevo', 'smtp2go'].includes(f.email_proveedor) ? f.email_proveedor : 'smtp',
         smtp_host: f.smtp_host?.trim() || null,
         smtp_port: Number(f.smtp_port) || 587,
         smtp_seguro: !!f.smtp_seguro,
@@ -246,35 +246,49 @@ export default function Negocio() {
 
         <label>Cómo se envían los correos
           <select value={f.email_proveedor || 'smtp'} onChange={(e) => set('email_proveedor', e.target.value)}>
-            <option value="brevo">Brevo (API HTTPS) — recomendado para la nube (Railway)</option>
+            <option value="smtp2go">SMTP2GO (API HTTPS) — recomendado para la nube (Railway)</option>
+            <option value="brevo">Brevo (API HTTPS)</option>
             <option value="smtp">Servidor SMTP propio / VPS</option>
           </select>
         </label>
         <p className="nota-min">
           Railway y la mayoría de servicios en la nube bloquean el envío por SMTP (puertos 25/465/587).
-          Con <strong>Brevo</strong> los correos salen por una API HTTPS: gratis 300 correos/día y no necesitas dominio.
+          Con <strong>SMTP2GO</strong> o <strong>Brevo</strong> los correos salen por una API HTTPS: registro gratuito,
+          sin necesidad de dominio propio.
         </p>
 
-        {f.email_proveedor === 'brevo' ? (
+        {(f.email_proveedor === 'smtp2go' || f.email_proveedor === 'brevo') ? (
           <>
             <div className="form-grid">
-              <label>Clave API de Brevo {f.tiene_email_api_key && <span className="estado completada">guardada</span>}
+              <label>
+                Clave API de {f.email_proveedor === 'smtp2go' ? 'SMTP2GO' : 'Brevo'}
+                {f.tiene_email_api_key && <span className="estado completada">guardada</span>}
                 <input type="password" value={emailApiKey} onChange={(e) => setEmailApiKey(e.target.value)}
-                  placeholder={f.tiene_email_api_key ? '••••••••' : 'xkeysib-...'} autoComplete="new-password" />
+                  placeholder={f.tiene_email_api_key ? '••••••••' : (f.email_proveedor === 'smtp2go' ? 'api-XXXXXXXX...' : 'xkeysib-...')}
+                  autoComplete="new-password" />
               </label>
-              <label>Remitente (correo verificado en Brevo)
+              <label>Remitente (correo verificado en {f.email_proveedor === 'smtp2go' ? 'SMTP2GO' : 'Brevo'})
                 <input value={f.smtp_remitente} onChange={(e) => set('smtp_remitente', e.target.value)} placeholder="tucorreo@gmail.com" />
               </label>
               <label>Nombre del remitente
                 <input value={f.smtp_remitente_nombre} onChange={(e) => set('smtp_remitente_nombre', e.target.value)} placeholder="Boutique Carmen" />
               </label>
             </div>
-            <ol className="nota-min" style={{ paddingLeft: 18, lineHeight: 1.5 }}>
-              <li>Crea una cuenta gratis en <strong>brevo.com</strong>.</li>
-              <li>En <strong>Senders, Domains &amp; Dedicated IPs → Senders</strong> agrega tu correo (el mismo del campo "Remitente") y confírmalo con el enlace que te llega.</li>
-              <li>En <strong>menú de tu cuenta → SMTP &amp; API → API Keys</strong> genera una clave nueva y pégala arriba (empieza con <code>xkeysib-</code>).</li>
-              <li>Guarda. Las facturas autorizadas se enviarán solas; las que quedaron pendientes se reintentan cada pocos segundos.</li>
-            </ol>
+            {f.email_proveedor === 'smtp2go' ? (
+              <ol className="nota-min" style={{ paddingLeft: 18, lineHeight: 1.5 }}>
+                <li>Crea una cuenta gratis en <strong>smtp2go.com</strong> (solo pide correo, sin teléfono).</li>
+                <li>Menú <strong>Sending → Verified Senders → Single Sender Emails</strong>: agrega tu correo (el mismo del campo "Remitente") y confírmalo con el enlace que te llega.</li>
+                <li>Menú <strong>Settings → API Keys → Add API Key</strong>: crea una clave con permiso de envío y pégala arriba (empieza con <code>api-</code>).</li>
+                <li>Guarda. Las facturas autorizadas se enviarán solas; las pendientes se reintentan cada pocos segundos.</li>
+              </ol>
+            ) : (
+              <ol className="nota-min" style={{ paddingLeft: 18, lineHeight: 1.5 }}>
+                <li>Crea una cuenta gratis en <strong>brevo.com</strong>.</li>
+                <li>En <strong>Senders, Domains &amp; Dedicated IPs → Senders</strong> agrega tu correo (el mismo del campo "Remitente") y confírmalo con el enlace que te llega.</li>
+                <li>En <strong>menú de tu cuenta → SMTP &amp; API → API Keys</strong> genera una clave nueva y pégala arriba (empieza con <code>xkeysib-</code>).</li>
+                <li>Guarda. Las facturas autorizadas se enviarán solas; las pendientes se reintentan cada pocos segundos.</li>
+              </ol>
+            )}
           </>
         ) : (
           <>
