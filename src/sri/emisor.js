@@ -139,6 +139,9 @@ async function enviarCorreo({ negocio, venta, items, pagos, comp }) {
     port: Number(negocio.smtp_port) || 587,
     secure: !!negocio.smtp_seguro,
     auth: negocio.smtp_usuario ? { user: negocio.smtp_usuario, pass: descifrar(negocio.smtp_clave_cif) } : undefined,
+    family: 4,                       // fuerza IPv4 (Railway no rutea IPv6 saliente)
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
   });
 
   const adjuntos = [{ filename: `factura-${comp.secuencial}.pdf`, content: pdf }];

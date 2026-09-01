@@ -1,9 +1,13 @@
+import dns from 'node:dns';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import { crearApp } from './app.js';
 import { iniciarWorkerSri } from './sri/worker.js';
 import { pool } from './db/pool.js';
 import { aplicarEsquema } from './db/migrar.js';
+
+// Prioriza IPv4 en las resoluciones DNS (algunos hosts como Railway no rutean IPv6 saliente).
+try { dns.setDefaultResultOrder('ipv4first'); } catch { /* Node viejo */ }
 
 dotenv.config();
 
