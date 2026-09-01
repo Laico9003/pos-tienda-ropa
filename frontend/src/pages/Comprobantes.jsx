@@ -36,6 +36,16 @@ export default function Comprobantes() {
     } catch (e) { toast.error(e.message); }
   }
 
+  async function reenviarCorreo(c) {
+    const correo = window.prompt('Enviar la factura por correo a:', c.correo_destino || '');
+    if (correo === null) return;
+    try {
+      await api.post(`/api/comprobantes/${c.id}/reenviar-correo`, { correo: correo.trim() });
+      toast.ok('Envío de correo encolado');
+      setTimeout(cargar, 1500);
+    } catch (e) { toast.error(e.message); }
+  }
+
   function mensajesDe(m) {
     if (!m) return [];
     const arr = m.mensajes || m;
@@ -86,6 +96,9 @@ export default function Comprobantes() {
                 )}
                 {esAdmin && ['devuelta', 'no_autorizada', 'error', 'firmado', 'recibida'].includes(c.estado) && (
                   <button className="btn-texto" onClick={() => reintentar(c.id)}>Reintentar</button>
+                )}
+                {esAdmin && c.estado === 'autorizada' && !c.correo_enviado && (
+                  <button className="btn-texto" onClick={() => reenviarCorreo(c)}>Enviar correo</button>
                 )}
               </td>
             </tr>

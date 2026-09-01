@@ -81,6 +81,26 @@ router.post('/:id/reintentar', requiereRol('admin'), async (req, res) => {
   res.json({ ok: true, estado: 'pendiente' });
 });
 
+// POST /api/comprobantes/:id/reenviar-correo  — reintenta SOLO el envío del correo
+router.post('/:id/reenviar-correo', requiereRol('admin'), async (req, res) => {
+  const comp = await traer(req.params.id, req.usuario);
+  if (comp.estado !== 'autorizada') {
+    throw new ErrorHttp(409, 'El comprobante todavía no está autorizado por el SRI');
+  }
+  const destino = String(req.body?.correo || comp.correo_destino || '').trim();
+  if (!destino) throw new ErrorHttp(400, 'No hay correo de destino para este comprobante');
+  await consulta(
+    `UPDATE comprobantes_sri SET
+        correo_enviado = false, correo_destino = $2,
+        intentos = 0, proximo_intento = now(), mensajes = NULL, actualizado_en = now()
+      WHERE id = $1`,
+    [comp.id, destino],
+  );
+  procesarComprobante({ ...comp, correo_enviado: false, correo_destino: destino, intentos: 0 })
+    .catch(() => {});
+  res.json({ ok: true });
+});
+
 // GET /api/comprobantes/:id/xml  — XML autorizado (o el firmado si aún no)
 router.get('/:id/xml', async (req, res) => {
   const comp = await traer(req.params.id, req.usuario);
