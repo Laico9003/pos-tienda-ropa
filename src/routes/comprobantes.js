@@ -66,16 +66,19 @@ router.get('/:id', async (req, res) => {
 // POST /api/comprobantes/:id/reintentar  — vuelve a poner el comprobante en cola
 router.post('/:id/reintentar', requiereRol('admin'), async (req, res) => {
   const comp = await traer(req.params.id, req.usuario);
-  if (['autorizada'].includes(comp.estado)) throw new ErrorHttp(409, 'El comprobante ya está autorizado');
-  const nuevoEstado = ['devuelta', 'no_autorizada', 'error'].includes(comp.estado) ? 'pendiente' : comp.estado;
+  if (comp.estado === 'autorizada') throw new ErrorHttp(409, 'El comprobante ya está autorizado');
+  // Reinicia desde cero: descarta clave/XML viejos para regenerarlos (evita desfases de fecha).
   await consulta(
-    `UPDATE comprobantes_sri SET estado = $1, intentos = 0, proximo_intento = now(), mensajes = NULL, actualizado_en = now()
-      WHERE id = $2`,
-    [nuevoEstado, comp.id],
+    `UPDATE comprobantes_sri SET
+        estado = 'pendiente', intentos = 0, proximo_intento = now(), mensajes = NULL, actualizado_en = now(),
+        clave_acceso = NULL, xml_firmado = NULL, xml_autorizado = NULL,
+        numero_autorizacion = NULL, fecha_autorizacion = NULL
+      WHERE id = $1`,
+    [comp.id],
   );
-  // procesa de una vez para dar respuesta rápida
-  procesarComprobante({ ...comp, estado: nuevoEstado, intentos: 0 }).catch(() => {});
-  res.json({ ok: true, estado: nuevoEstado });
+  procesarComprobante({ ...comp, estado: 'pendiente', intentos: 0, clave_acceso: null, xml_firmado: null })
+    .catch(() => {});
+  res.json({ ok: true, estado: 'pendiente' });
 });
 
 // GET /api/comprobantes/:id/xml  — XML autorizado (o el firmado si aún no)
