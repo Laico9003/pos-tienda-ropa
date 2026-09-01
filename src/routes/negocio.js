@@ -16,6 +16,7 @@ const CAMPOS = [
   'iva_porcentaje', 'precios_incluyen_iva', 'emitir_factura_auto',
   'obligado_contabilidad', 'ambiente_sri', 'exigir_caja',
   'smtp_host', 'smtp_port', 'smtp_seguro', 'smtp_usuario', 'smtp_remitente', 'smtp_remitente_nombre',
+  'email_proveedor',
 ];
 const ANULABLES = new Set([
   'razon_social', 'ruc', 'direccion', 'telefono', 'email', 'logo_url', 'mensaje_recibo',
@@ -23,14 +24,15 @@ const ANULABLES = new Set([
   'smtp_host', 'smtp_usuario', 'smtp_remitente', 'smtp_remitente_nombre',
 ]);
 
-// No se devuelven al frontend (secretos): certificado_p12, certificado_clave_cif, smtp_clave_cif
+// No se devuelven al frontend (secretos): certificado_p12, certificado_clave_cif, smtp_clave_cif, email_api_key_cif
 function limpiarNegocio(n) {
   if (!n) return {};
-  const { certificado_p12, certificado_clave_cif, smtp_clave_cif, ...resto } = n;
+  const { certificado_p12, certificado_clave_cif, smtp_clave_cif, email_api_key_cif, ...resto } = n;
   return {
     ...resto,
     tiene_certificado: !!certificado_p12,
     tiene_smtp_clave: !!smtp_clave_cif,
+    tiene_email_api_key: !!email_api_key_cif,
   };
 }
 
@@ -53,6 +55,10 @@ router.put('/', requiereRol('admin'), async (req, res) => {
       if (v.length !== 13) {
         throw new ErrorHttp(400, `El RUC debe tener 13 dígitos (recibí ${v.length}). El RUC de persona natural es la cédula + "001".`);
       }
+    }
+    if (campo === 'email_proveedor') {
+      v = String(v || 'smtp').trim().toLowerCase();
+      if (!['smtp', 'brevo'].includes(v)) v = 'smtp';
     }
     if (ANULABLES.has(campo)) v = v || null;
     valores.push(v);
@@ -89,6 +95,16 @@ router.put('/', requiereRol('admin'), async (req, res) => {
       sets.push(`smtp_clave_cif = $${valores.length}`);
     } else {
       sets.push('smtp_clave_cif = NULL');
+    }
+  }
+
+  // Clave API de Brevo (solo si viene; cadena vacía = quitar)
+  if (req.body.email_api_key !== undefined) {
+    if (req.body.email_api_key) {
+      valores.push(cifrar(String(req.body.email_api_key).trim()));
+      sets.push(`email_api_key_cif = $${valores.length}`);
+    } else {
+      sets.push('email_api_key_cif = NULL');
     }
   }
 

@@ -114,7 +114,8 @@ export async function procesarComprobante(comp) {
     }
 
     // ---------- 4. Enviar RIDE por correo ----------
-    if (comp.estado === 'autorizada' && !comp.correo_enviado && comp.correo_destino && negocio.smtp_host) {
+    const hayCorreoSaliente = (negocio.email_proveedor === 'brevo' && negocio.email_api_key_cif) || !!negocio.smtp_host;
+    if (comp.estado === 'autorizada' && !comp.correo_enviado && comp.correo_destino && hayCorreoSaliente) {
       try {
         await enviarCorreo({ negocio, venta, items, pagos, comp });
         await guardar(comp.id, { correo_enviado: true });
@@ -135,13 +136,56 @@ async function enviarCorreo({ negocio, venta, items, pagos, comp }) {
   const { resumen } = construirFactura({ venta, items, pagos, negocio, comprobante: comp });
   const pdf = await generarRidePDF({ negocio, venta: { ...venta, items, pagos }, comprobante: comp, resumen });
 
-  // Railway no rutea IPv6 saliente: resolvemos el host a una IP v4 y la usamos directamente,
-  // manteniendo el nombre real para la validación del certificado TLS.
+  const asunto = `Factura electrónica ${comp.estab}-${comp.pto_emi}-${comp.secuencial} - ${negocio.nombre || ''}`;
+  const texto = `Adjuntamos su factura electrónica.\n\nClave de acceso: ${comp.clave_acceso}\nTotal: $ ${Number(venta.total).toFixed(2)}\n\n${negocio.mensaje_recibo || 'Gracias por su compra'}`;
+  const remitente = negocio.smtp_remitente || negocio.smtp_usuario || negocio.email;
+  const remitenteNombre = negocio.smtp_remitente_nombre || negocio.nombre || undefined;
+
+  const adjuntos = [{ nombre: `factura-${comp.secuencial}.pdf`, pdf }];
+  if (comp.xml_autorizado) adjuntos.push({ nombre: `factura-${comp.secuencial}.xml`, xml: comp.xml_autorizado });
+
+  if (negocio.email_proveedor === 'brevo' && negocio.email_api_key_cif) {
+    await enviarPorBrevo({ negocio, comp, asunto, texto, remitente, remitenteNombre, adjuntos });
+  } else if (negocio.smtp_host) {
+    await enviarPorSmtp({ negocio, comp, asunto, texto, remitente, remitenteNombre, adjuntos });
+  } else {
+    throw new Error('No hay correo saliente configurado en Datos del negocio');
+  }
+}
+
+/** Envío por API HTTPS de Brevo (funciona en hosts que bloquean SMTP, como Railway). */
+async function enviarPorBrevo({ negocio, comp, asunto, texto, remitente, remitenteNombre, adjuntos }) {
+  if (!remitente) throw new Error('Falta el correo remitente (verificado en Brevo)');
+  const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': descifrar(negocio.email_api_key_cif),
+      'content-type': 'application/json',
+      accept: 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { email: remitente, name: remitenteNombre },
+      to: [{ email: comp.correo_destino }],
+      subject: asunto,
+      textContent: texto,
+      attachment: adjuntos.map((a) => ({
+        name: a.nombre,
+        content: (a.pdf || Buffer.from(a.xml, 'utf8')).toString('base64'),
+      })),
+    }),
+  });
+  if (!resp.ok) {
+    throw new Error(`Brevo ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
+  }
+}
+
+/** Envío por SMTP (servidor propio / VPS). */
+async function enviarPorSmtp({ negocio, comp, asunto, texto, remitente, remitenteNombre, adjuntos }) {
   let hostConexion = negocio.smtp_host;
   try {
     const { address } = await dnsp.lookup(negocio.smtp_host, { family: 4 });
     if (address) hostConexion = address;
-  } catch { /* si falla la resolución, se usa el nombre tal cual */ }
+  } catch { /* usa el nombre tal cual */ }
 
   const transport = nodemailer.createTransport({
     host: hostConexion,
@@ -154,18 +198,14 @@ async function enviarCorreo({ negocio, venta, items, pagos, comp }) {
     tls: { servername: negocio.smtp_host },
   });
 
-  const adjuntos = [{ filename: `factura-${comp.secuencial}.pdf`, content: pdf }];
-  if (comp.xml_autorizado) {
-    adjuntos.push({ filename: `factura-${comp.secuencial}.xml`, content: comp.xml_autorizado, contentType: 'application/xml' });
-  }
-
   await transport.sendMail({
-    from: negocio.smtp_remitente_nombre
-      ? `"${negocio.smtp_remitente_nombre}" <${negocio.smtp_remitente || negocio.smtp_usuario}>`
-      : (negocio.smtp_remitente || negocio.smtp_usuario),
+    from: remitenteNombre ? `"${remitenteNombre}" <${remitente}>` : remitente,
     to: comp.correo_destino,
-    subject: `Factura electrónica ${comp.estab}-${comp.pto_emi}-${comp.secuencial} - ${negocio.nombre || ''}`,
-    text: `Adjuntamos su factura electrónica.\n\nClave de acceso: ${comp.clave_acceso}\nTotal: $ ${Number(venta.total).toFixed(2)}\n\n${negocio.mensaje_recibo || 'Gracias por su compra'}`,
-    attachments: adjuntos,
+    subject: asunto,
+    text: texto,
+    attachments: adjuntos.map((a) => (
+      a.pdf ? { filename: a.nombre, content: a.pdf }
+        : { filename: a.nombre, content: a.xml, contentType: 'application/xml' }
+    )),
   });
 }
