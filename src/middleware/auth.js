@@ -1,20 +1,37 @@
 import jwt from 'jsonwebtoken';
 import { ErrorHttp } from './errores.js';
 import { consulta } from '../db/pool.js';
+import { estadoUsuario } from './seguridad.js';
 
-/** Verifica el token JWT y deja los datos del usuario en req.usuario. */
-export function autenticar(req, _res, next) {
+/**
+ * Verifica el token JWT y deja los datos del usuario en req.usuario.
+ * Además comprueba (con caché de 30 s) que la cuenta siga activa y aplica el
+ * rol actual de la base, para que desactivar un usuario o cambiarle el rol
+ * tenga efecto sin esperar a que caduque el token.
+ */
+export async function autenticar(req, _res, next) {
   const encabezado = req.headers.authorization || '';
   const token = encabezado.startsWith('Bearer ') ? encabezado.slice(7) : null;
   if (!token) throw new ErrorHttp(401, 'Falta el token de autenticación');
 
+  let payload;
   try {
-    // { id, rol, tienda_id, nombre }
-    req.usuario = jwt.verify(token, process.env.JWT_SECRET);
-    next();
+    payload = jwt.verify(token, process.env.JWT_SECRET); // { id, rol, tienda_id, nombre }
   } catch {
     throw new ErrorHttp(401, 'Token inválido o expirado');
   }
+
+  try {
+    const est = await estadoUsuario(payload.id);
+    if (!est || est.activo === false) throw new ErrorHttp(401, 'La cuenta está desactivada');
+    payload.rol = est.rol; // respeta cambios de rol en caliente
+  } catch (e) {
+    if (e instanceof ErrorHttp) throw e;
+    // Fallo transitorio de la BD: no cerramos la sesión de todos; el JWT sigue siendo válido.
+  }
+
+  req.usuario = payload;
+  next();
 }
 
 /** Restringe la ruta a los roles indicados. */

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
 
+import { consulta } from './db/pool.js';
 import authRoutes from './routes/auth.js';
 import usuariosRoutes from './routes/usuarios.js';
 import tiendasRoutes from './routes/tiendas.js';
@@ -23,12 +24,29 @@ const distDir = path.join(dir, '..', 'frontend', 'dist');
 
 export function crearApp() {
   const app = express();
+  app.disable('x-powered-by');
   app.use(cors());
+
+  // Cabeceras de seguridad básicas (sin dependencias externas).
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-DNS-Prefetch-Control', 'off');
+    next();
+  });
+
   // límite alto: las fotos de producto viajan como data URI dentro del JSON
   app.use(express.json({ limit: '12mb' }));
 
-  app.get('/api/salud', (_req, res) => {
-    res.json({ estado: 'ok', hora: new Date().toISOString() });
+  // Salud: además de responder, comprueba que la base de datos contesta.
+  app.get('/api/salud', async (_req, res) => {
+    try {
+      await consulta('SELECT 1');
+      res.json({ estado: 'ok', db: 'ok', hora: new Date().toISOString() });
+    } catch {
+      res.status(503).json({ estado: 'degradado', db: 'sin_conexion', hora: new Date().toISOString() });
+    }
   });
 
   app.use('/api/auth', authRoutes);

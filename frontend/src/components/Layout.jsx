@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../auth.jsx';
+import ModalClave from './ModalClave.jsx';
 
 const ICON = {
   venta: '🛒', dashboard: '📊', productos: '👕', inventario: '📦', ventas: '🧾',
@@ -8,6 +10,7 @@ const ICON = {
 
 export default function Layout({ children }) {
   const { usuario, negocio, salir, esAdmin, puedeInventario } = useAuth();
+  const [modalClave, setModalClave] = useState(false);
 
   const enlaces = [
     { to: '/venta', txt: 'Punto de venta', k: 'venta' },
@@ -45,10 +48,12 @@ export default function Layout({ children }) {
             <span className="badge">{usuario.rol}</span>
             <span className="tienda">{usuario.tienda_nombre || `Tienda ${usuario.tienda_id}`}</span>
           </div>
+          <button className="btn-texto" onClick={() => setModalClave(true)}>Cambiar contraseña</button>
           <button className="btn-texto" onClick={salir}>Cerrar sesión</button>
         </div>
       </aside>
       <main className="contenido">{children}</main>
+      {modalClave && <ModalClave onCerrar={() => setModalClave(false)} />}
     </div>
   );
 }

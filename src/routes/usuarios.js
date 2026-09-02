@@ -4,6 +4,7 @@ import { consulta } from '../db/pool.js';
 import { autenticar, requiereRol } from '../middleware/auth.js';
 import { ErrorHttp } from '../middleware/errores.js';
 import { requerido } from '../utils/validacion.js';
+import { invalidarEstadoUsuario } from '../middleware/seguridad.js';
 
 const router = Router();
 router.use(autenticar, requiereRol('admin'));
@@ -47,6 +48,27 @@ router.put('/:id', async (req, res) => {
   const { nombre, rol, tienda_id, activo, password } = req.body;
   if (rol && !ROLES.includes(rol)) throw new ErrorHttp(400, `Rol inválido. Use uno de: ${ROLES.join(', ')}`);
 
+  const id = Number(req.params.id);
+  const propioUsuario = id === req.usuario.id;
+
+  // No permitir que un admin se desactive o se quite el rol de admin a sí mismo.
+  if (propioUsuario && activo === false) throw new ErrorHttp(400, 'No puedes desactivar tu propia cuenta');
+  if (propioUsuario && rol && rol !== 'admin') throw new ErrorHttp(400, 'No puedes quitarte a ti mismo el rol de administrador');
+
+  // No dejar el sistema sin ningún admin activo.
+  if (activo === false || (rol && rol !== 'admin')) {
+    const { rows: r } = await consulta(
+      `SELECT rol, activo FROM usuarios WHERE id = $1`, [id],
+    );
+    const eraAdminActivo = r[0]?.rol === 'admin' && r[0]?.activo;
+    if (eraAdminActivo) {
+      const { rows: c } = await consulta(
+        `SELECT COUNT(*)::int AS n FROM usuarios WHERE rol = 'admin' AND activo = true AND id <> $1`, [id],
+      );
+      if (c[0].n === 0) throw new ErrorHttp(409, 'Debe quedar al menos un administrador activo');
+    }
+  }
+
   let hash = null;
   if (password) {
     if (String(password).length < 6) throw new ErrorHttp(400, 'La contraseña debe tener al menos 6 caracteres');
@@ -72,6 +94,7 @@ router.put('/:id', async (req, res) => {
     ],
   );
   if (!rows[0]) throw new ErrorHttp(404, 'Usuario no encontrado');
+  invalidarEstadoUsuario(id);
   res.json(rows[0]);
 });
 

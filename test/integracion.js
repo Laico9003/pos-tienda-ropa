@@ -72,6 +72,42 @@ async function main() {
     r = await api('GET', '/api/productos', {});
     ok(r.status === 401, 'sin token => 401');
 
+    console.log('\n— Endurecimiento de autenticación —');
+    // Freno de fuerza bruta: tras 8 intentos fallidos, el 9.º devuelve 429.
+    for (let i = 0; i < 8; i++) {
+      await api('POST', '/api/auth/login', { body: { email: 'intruso@x.com', password: 'x' } });
+    }
+    r = await api('POST', '/api/auth/login', { body: { email: 'intruso@x.com', password: 'x' } });
+    ok(r.status === 429, 'login: 9.º intento fallido => 429', r.status);
+
+    // Cambio de contraseña propia
+    r = await api('POST', '/api/auth/cambiar-clave', { token: tokenVendedor, body: { actual: 'mala', nueva: 'nueva123' } });
+    ok(r.status === 400, 'cambiar-clave con actual incorrecta => 400', r.status);
+    r = await api('POST', '/api/auth/cambiar-clave', { token: tokenVendedor, body: { actual: 'admin123', nueva: 'nueva123' } });
+    ok(r.status === 200, 'cambiar-clave con actual correcta => 200', r.status);
+    r = await api('POST', '/api/auth/login', { body: { email: 'vera@tienda.com', password: 'admin123' } });
+    ok(r.status === 401, 'la contraseña vieja del vendedor ya no sirve => 401', r.status);
+    r = await api('POST', '/api/auth/login', { body: { email: 'vera@tienda.com', password: 'nueva123' } });
+    ok(r.status === 200, 'la contraseña nueva del vendedor funciona => 200', r.status);
+
+    // No se puede dejar el sistema sin admin activo
+    r = await api('PUT', '/api/usuarios/1', { token: tokenAdmin, body: { activo: false } });
+    ok(r.status === 400, 'un admin no puede desactivar su propia cuenta => 400', r.status);
+
+    // Un usuario desactivado pierde el acceso de inmediato (se invalida la caché)
+    r = await api('POST', '/api/usuarios', {
+      token: tokenAdmin,
+      body: { nombre: 'Temp', email: 'temp@x.com', password: 'temp123', rol: 'vendedor', tienda_id: 1 },
+    });
+    const tempId = r.datos.id;
+    r = await api('POST', '/api/auth/login', { body: { email: 'temp@x.com', password: 'temp123' } });
+    const tokenTemp = r.datos.token;
+    r = await api('GET', '/api/productos', { token: tokenTemp });
+    ok(r.status === 200, 'usuario temporal entra normalmente', r.status);
+    await api('PUT', `/api/usuarios/${tempId}`, { token: tokenAdmin, body: { activo: false } });
+    r = await api('GET', '/api/productos', { token: tokenTemp });
+    ok(r.status === 401, 'tras desactivarlo, su token deja de funcionar => 401', r.status);
+
     console.log('\n— Categorías —');
     r = await api('GET', '/api/categorias', { token: tokenAdmin });
     ok(r.status === 200 && r.datos.length >= 7, 'categorías de ejemplo cargadas', r.datos?.length);
