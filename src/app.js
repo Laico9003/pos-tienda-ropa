@@ -25,6 +25,9 @@ const distDir = path.join(dir, '..', 'frontend', 'dist');
 export function crearApp() {
   const app = express();
   app.disable('x-powered-by');
+  // Railway/Render ponen un proxy delante: confiar en el primer salto para que
+  // req.ip refleje la IP real del cliente (X-Forwarded-For) y no la del proxy.
+  app.set('trust proxy', 1);
   app.use(cors());
 
   // Cabeceras de seguridad básicas (sin dependencias externas).

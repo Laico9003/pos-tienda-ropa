@@ -6,36 +6,59 @@
 import { consulta } from '../db/pool.js';
 
 // ---------- 1. Freno de intentos de login ----------
-const MAX_INTENTOS = 8;        // intentos fallidos antes de bloquear
+// Dos contadores por intento: uno por IP+correo (más estricto) y otro solo por
+// correo (defensa si el atacante rota de IP). El más restrictivo manda.
 const VENTANA_MIN = 15;        // se cuentan los fallos de los últimos N minutos
 const BLOQUEO_MIN = 15;        // cuánto dura el bloqueo
+const MAX_IP_CORREO = 8;
+const MAX_CORREO = 15;
 
 const intentos = new Map();    // clave -> { n, primero, hasta }
 
-export function claveLogin(req) {
+function clavesDe(req) {
   const ip = req.ip || req.socket?.remoteAddress || 'ip';
-  const email = String(req.body?.email || '').toLowerCase().trim();
-  return `${ip}|${email}`;
+  const email = String(req.body?.email || '').toLowerCase().trim() || '?';
+  return { ipCorreo: `ic|${ip}|${email}`, correo: `c|${email}` };
+}
+
+// Compatibilidad: algunos sitios llaman claveLogin(req) directamente.
+export function claveLogin(req) {
+  return clavesDe(req).ipCorreo;
+}
+
+function bloqueoDe(clave) {
+  const e = intentos.get(clave);
+  return e?.hasta && e.hasta > Date.now() ? Math.ceil((e.hasta - Date.now()) / 1000) : 0;
 }
 
 /** Segundos que faltan para poder reintentar, o 0 si no está bloqueado. */
-export function loginBloqueado(clave) {
-  const e = intentos.get(clave);
-  if (e?.hasta && e.hasta > Date.now()) return Math.ceil((e.hasta - Date.now()) / 1000);
-  return 0;
+export function loginBloqueado(reqOClave) {
+  if (typeof reqOClave === 'string') return bloqueoDe(reqOClave);
+  const { ipCorreo, correo } = clavesDe(reqOClave);
+  return Math.max(bloqueoDe(ipCorreo), bloqueoDe(correo));
 }
 
-export function loginFallido(clave) {
+function sumar(clave, max) {
   const ahora = Date.now();
   let e = intentos.get(clave);
   if (!e || ahora - e.primero > VENTANA_MIN * 60_000) e = { n: 0, primero: ahora, hasta: 0 };
   e.n += 1;
-  if (e.n >= MAX_INTENTOS) e.hasta = ahora + BLOQUEO_MIN * 60_000;
+  if (e.n >= max) e.hasta = ahora + BLOQUEO_MIN * 60_000;
   intentos.set(clave, e);
 }
 
-export function loginOk(clave) {
-  intentos.delete(clave);
+export function loginFallido(reqOClave) {
+  if (typeof reqOClave === 'string') { sumar(reqOClave, MAX_IP_CORREO); return; }
+  const { ipCorreo, correo } = clavesDe(reqOClave);
+  sumar(ipCorreo, MAX_IP_CORREO);
+  sumar(correo, MAX_CORREO);
+}
+
+export function loginOk(reqOClave) {
+  if (typeof reqOClave === 'string') { intentos.delete(reqOClave); return; }
+  const { ipCorreo, correo } = clavesDe(reqOClave);
+  intentos.delete(ipCorreo);
+  intentos.delete(correo);
 }
 
 // Limpieza periódica para que el Map no crezca sin límite.

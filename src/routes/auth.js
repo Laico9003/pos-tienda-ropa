@@ -5,14 +5,13 @@ import { consulta } from '../db/pool.js';
 import { autenticar } from '../middleware/auth.js';
 import { ErrorHttp } from '../middleware/errores.js';
 import { requerido } from '../utils/validacion.js';
-import { claveLogin, loginBloqueado, loginFallido, loginOk, invalidarEstadoUsuario } from '../middleware/seguridad.js';
+import { loginBloqueado, loginFallido, loginOk, invalidarEstadoUsuario } from '../middleware/seguridad.js';
 
 const router = Router();
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
-  const clave = claveLogin(req);
-  const espera = loginBloqueado(clave);
+  const espera = loginBloqueado(req);
   if (espera) {
     res.setHeader('Retry-After', String(espera));
     throw new ErrorHttp(429, `Demasiados intentos fallidos. Espera ${Math.ceil(espera / 60)} min e inténtalo de nuevo.`);
@@ -29,12 +28,12 @@ router.post('/login', async (req, res) => {
     [email],
   );
   const usuario = rows[0];
-  if (!usuario || !usuario.activo) { loginFallido(clave); throw new ErrorHttp(401, 'Credenciales inválidas'); }
+  if (!usuario || !usuario.activo) { loginFallido(req); throw new ErrorHttp(401, 'Credenciales inválidas'); }
 
   const ok = await bcrypt.compare(password, usuario.password_hash);
-  if (!ok) { loginFallido(clave); throw new ErrorHttp(401, 'Credenciales inválidas'); }
+  if (!ok) { loginFallido(req); throw new ErrorHttp(401, 'Credenciales inválidas'); }
 
-  loginOk(clave);
+  loginOk(req);
 
   const token = jwt.sign(
     { id: usuario.id, rol: usuario.rol, tienda_id: usuario.tienda_id, nombre: usuario.nombre },
