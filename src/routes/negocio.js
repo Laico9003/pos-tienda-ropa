@@ -144,20 +144,36 @@ router.put('/', requiereRol('admin'), async (req, res) => {
   res.json(limpiarNegocio(rows[0]));
 });
 
-// POST /api/negocio/reiniciar-secuencia  — vuelve la numeración de facturas a 1.
-// Solo admin y solo si todavía NO hay comprobantes de producción emitidos, para
-// no romper una serie ya entregada al SRI.
+// POST /api/negocio/reiniciar-secuencia  — pone la numeración de facturas de un
+// ambiente en un valor dado (0 por defecto → la próxima factura será la N.º 1).
+// La numeración de PRODUCCIÓN solo se puede reiniciar si aún no se emitió
+// ninguna factura de producción (para no romper una serie ya entregada al SRI).
+// La de PRUEBAS se puede reiniciar siempre.
 router.post('/reiniciar-secuencia', requiereRol('admin'), async (req, res) => {
-  const { rows: prod } = await consulta(
-    `SELECT COUNT(*)::int AS n FROM comprobantes_sri WHERE ambiente = '2'`,
-  );
-  if (prod[0].n > 0) {
-    throw new ErrorHttp(409, `Ya hay ${prod[0].n} comprobante(s) de producción emitidos; no se puede reiniciar la numeración.`);
-  }
   const tipo = String(req.body?.tipo || '01');
+  let ambiente = String(req.body?.ambiente || '').trim();
+  if (ambiente !== '1' && ambiente !== '2') {
+    const { rows: neg } = await consulta(`SELECT ambiente_sri FROM negocio WHERE id = 1`);
+    ambiente = neg[0]?.ambiente_sri === 'produccion' ? '2' : '1';
+  }
   const desde = Number.isFinite(Number(req.body?.desde)) ? Math.max(0, Math.floor(Number(req.body.desde))) : 0;
-  await consulta(`UPDATE secuencias SET secuencial = $1 WHERE tipo = $2`, [desde, tipo]);
-  res.json({ ok: true, proximo: desde + 1 });
+
+  if (ambiente === '2') {
+    const { rows: prod } = await consulta(
+      `SELECT COUNT(*)::int AS n FROM comprobantes_sri WHERE ambiente = '2'`,
+    );
+    if (prod[0].n > 0) {
+      throw new ErrorHttp(409, `Ya hay ${prod[0].n} factura(s) de producción emitidas; no se puede reiniciar esa numeración.`);
+    }
+  }
+
+  await consulta(
+    `INSERT INTO secuencias (tienda_id, tipo, ambiente, secuencial)
+     SELECT id, $2, $3, $1 FROM tiendas
+     ON CONFLICT (tienda_id, tipo, ambiente) DO UPDATE SET secuencial = EXCLUDED.secuencial`,
+    [desde, tipo, ambiente],
+  );
+  res.json({ ok: true, ambiente, proximo: desde + 1 });
 });
 
 export default router;

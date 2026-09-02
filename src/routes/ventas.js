@@ -242,10 +242,10 @@ async function encolarFacturaAuto(ventaId) {
   const ambiente = n[0].ambiente_sri === 'produccion' ? '2' : '1';
   await conTransaccion(async (cli) => {
     const { rows: sec } = await cli.query(
-      `INSERT INTO secuencias (tienda_id, tipo, secuencial) VALUES ($1, '01', 1)
-       ON CONFLICT (tienda_id, tipo) DO UPDATE SET secuencial = secuencias.secuencial + 1
+      `INSERT INTO secuencias (tienda_id, tipo, ambiente, secuencial) VALUES ($1, '01', $2, 1)
+       ON CONFLICT (tienda_id, tipo, ambiente) DO UPDATE SET secuencial = secuencias.secuencial + 1
        RETURNING secuencial`,
-      [v[0].tienda_id],
+      [v[0].tienda_id, ambiente],
     );
     await cli.query(
       `INSERT INTO comprobantes_sri (venta_id, tipo, ambiente, estab, pto_emi, secuencial, correo_destino)
@@ -460,10 +460,10 @@ router.post('/:id/facturar', requiereRol('admin', 'vendedor'), async (req, res) 
 
   const comprobante = await conTransaccion(async (cli) => {
     const { rows: sec } = await cli.query(
-      `INSERT INTO secuencias (tienda_id, tipo, secuencial) VALUES ($1, '01', 1)
-       ON CONFLICT (tienda_id, tipo) DO UPDATE SET secuencial = secuencias.secuencial + 1
+      `INSERT INTO secuencias (tienda_id, tipo, ambiente, secuencial) VALUES ($1, '01', $2, 1)
+       ON CONFLICT (tienda_id, tipo, ambiente) DO UPDATE SET secuencial = secuencias.secuencial + 1
        RETURNING secuencial`,
-      [venta.tienda_id],
+      [venta.tienda_id, ambiente],
     );
     const secuencial = String(sec[0].secuencial).padStart(9, '0');
     const { rows: c } = await cli.query(

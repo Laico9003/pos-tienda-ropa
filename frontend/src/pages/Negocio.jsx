@@ -112,10 +112,15 @@ export default function Negocio() {
   }
 
   async function reiniciarSecuencia() {
-    if (!window.confirm('¿Reiniciar la numeración de facturas a 1?\n\nSolo hazlo antes de emitir la primera factura de producción.')) return;
+    const amb = f.ambiente_sri === 'produccion' ? 'PRODUCCIÓN' : 'PRUEBAS';
+    if (!window.confirm(
+      `¿Reiniciar la numeración de facturas de ${amb} a 1?\n\n`
+      + 'Cada ambiente tiene su propia numeración. La de producción solo se '
+      + 'puede reiniciar si aún no emitiste ninguna factura real.',
+    )) return;
     try {
       const r = await api.post('/api/negocio/reiniciar-secuencia', {});
-      toast.ok(`Numeración reiniciada. La próxima factura será la N.º ${r.proximo}.`);
+      toast.ok(`Numeración de ${amb} reiniciada. La próxima factura será la N.º ${r.proximo}.`);
     } catch (e) { toast.error(e.message); }
   }
 
@@ -232,10 +237,10 @@ export default function Negocio() {
         <p className="nota-min">Si no la activas, la factura se emite con el botón "Factura electrónica" al terminar cada venta.</p>
         <div className="modal-acciones" style={{ marginTop: 8, justifyContent: 'flex-start' }}>
           <button type="button" className="btn-texto peligro" onClick={reiniciarSecuencia}>
-            Reiniciar numeración de facturas a 1
+            Reiniciar numeración de facturas ({f.ambiente_sri === 'produccion' ? 'producción' : 'pruebas'}) a 1
           </button>
         </div>
-        <p className="nota-min">Úsalo una sola vez, antes de emitir la primera factura de producción. Se bloquea si ya hay facturas de producción.</p>
+        <p className="nota-min">Cada ambiente tiene su propia numeración. La de producción se bloquea una vez emitida la primera factura real; la de pruebas se puede reiniciar siempre.</p>
       </div>
 
       {/* ---------- Firma electrónica ---------- */}

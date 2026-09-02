@@ -277,13 +277,21 @@ CREATE INDEX IF NOT EXISTS idx_movcaja_caja ON movimientos_caja(caja_id);
 ALTER TABLE ventas ADD COLUMN IF NOT EXISTS caja_id INTEGER REFERENCES cajas(id);
 CREATE INDEX IF NOT EXISTS idx_ventas_caja ON ventas(caja_id);
 
--- ---------- Secuenciales de comprobantes por tienda ----------
+-- ---------- Secuenciales de comprobantes por tienda y ambiente ----------
+-- La numeración es independiente por ambiente: producción lleva su propia
+-- serie (1,2,3…) sin que las pruebas la adelanten, y viceversa.
 CREATE TABLE IF NOT EXISTS secuencias (
   tienda_id   INTEGER NOT NULL REFERENCES tiendas(id),
   tipo        VARCHAR(2) NOT NULL DEFAULT '01',   -- 01 = factura
+  ambiente    VARCHAR(1) NOT NULL DEFAULT '2',    -- 1 = pruebas, 2 = producción
   secuencial  INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (tienda_id, tipo)
+  PRIMARY KEY (tienda_id, tipo, ambiente)
 );
+-- Migración de bases previas (PK era (tienda_id, tipo)): la fila existente queda
+-- como contador de PRODUCCIÓN ('2') por el DEFAULT de arriba.
+ALTER TABLE secuencias ADD COLUMN IF NOT EXISTS ambiente VARCHAR(1) NOT NULL DEFAULT '2';
+ALTER TABLE secuencias DROP CONSTRAINT IF EXISTS secuencias_pkey;
+ALTER TABLE secuencias ADD  CONSTRAINT secuencias_pkey PRIMARY KEY (tienda_id, tipo, ambiente);
 
 -- ---------- Comprobantes electrónicos (cola + registro SRI) ----------
 CREATE TABLE IF NOT EXISTS comprobantes_sri (

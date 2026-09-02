@@ -74,10 +74,10 @@ router.post('/:id/reintentar', requiereRol('admin'), async (req, res) => {
   let secuencial = comp.secuencial;
   if (req.body?.nuevo_secuencial || rechazoSecuencial) {
     const { rows } = await consulta(
-      `INSERT INTO secuencias (tienda_id, tipo, secuencial) VALUES ($1, '01', 1)
-       ON CONFLICT (tienda_id, tipo) DO UPDATE SET secuencial = secuencias.secuencial + 1
+      `INSERT INTO secuencias (tienda_id, tipo, ambiente, secuencial) VALUES ($1, '01', $2, 1)
+       ON CONFLICT (tienda_id, tipo, ambiente) DO UPDATE SET secuencial = secuencias.secuencial + 1
        RETURNING secuencial`,
-      [comp.tienda_id],
+      [comp.tienda_id, comp.ambiente],
     );
     secuencial = String(rows[0].secuencial).padStart(9, '0');
   }
