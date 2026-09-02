@@ -95,12 +95,17 @@ async function procesarComprobanteInterno(comp) {
     // ---------- 2. Recepción ----------
     if (comp.estado === 'firmado') {
       const r = await recepcion(comp.xml_firmado, comp.ambiente);
+      const claveYaRegistrada = r.mensajes.some((m) => (
+        String(m?.identificador) === '43' ||
+        /clave\s*de\s*acceso\s+registrad/i.test(`${m?.mensaje} ${m?.informacionAdicional}`)
+      ));
       if (r.estado === 'RECIBIDA') {
         await guardar(comp.id, { estado: 'recibida' });
         await consulta(`UPDATE ventas SET estado_sri = 'recibida' WHERE id = $1`, [comp.venta_id]);
         comp.estado = 'recibida';
-      } else if (r.mensajes.some((m) => /registrad/i.test(`${m?.mensaje} ${m?.informacionAdicional}`))) {
-        // "CLAVE ACCESO REGISTRADA" -> ya estaba recibida, seguimos a autorización
+      } else if (claveYaRegistrada) {
+        // id 43 "CLAVE ACCESO REGISTRADA": el SRI ya tiene ESTE comprobante; seguimos a autorización.
+        // OJO: NO incluye "SECUENCIAL REGISTRADO" (id 45), que sí es un rechazo real.
         await guardar(comp.id, { estado: 'recibida' });
         comp.estado = 'recibida';
       } else {

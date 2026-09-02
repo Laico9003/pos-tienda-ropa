@@ -67,18 +67,34 @@ router.get('/:id', async (req, res) => {
 router.post('/:id/reintentar', requiereRol('admin'), async (req, res) => {
   const comp = await traer(req.params.id, req.usuario);
   if (comp.estado === 'autorizada') throw new ErrorHttp(409, 'El comprobante ya está autorizado');
+
+  // Si el SRI rechazó por "SECUENCIAL REGISTRADO" (id 45), ese número quedó
+  // quemado: hay que tomar uno nuevo. También se puede forzar con el body.
+  const rechazoSecuencial = JSON.stringify(comp.mensajes || '').includes('SECUENCIAL REGISTRADO');
+  let secuencial = comp.secuencial;
+  if (req.body?.nuevo_secuencial || rechazoSecuencial) {
+    const { rows } = await consulta(
+      `INSERT INTO secuencias (tienda_id, tipo, secuencial) VALUES ($1, '01', 1)
+       ON CONFLICT (tienda_id, tipo) DO UPDATE SET secuencial = secuencias.secuencial + 1
+       RETURNING secuencial`,
+      [comp.tienda_id],
+    );
+    secuencial = String(rows[0].secuencial).padStart(9, '0');
+  }
+
   // Reinicia desde cero: descarta clave/XML viejos para regenerarlos (evita desfases de fecha).
   await consulta(
     `UPDATE comprobantes_sri SET
         estado = 'pendiente', intentos = 0, proximo_intento = now(), mensajes = NULL, actualizado_en = now(),
+        secuencial = $2,
         clave_acceso = NULL, xml_firmado = NULL, xml_autorizado = NULL,
         numero_autorizacion = NULL, fecha_autorizacion = NULL
       WHERE id = $1`,
-    [comp.id],
+    [comp.id, secuencial],
   );
-  procesarComprobante({ ...comp, estado: 'pendiente', intentos: 0, clave_acceso: null, xml_firmado: null })
+  procesarComprobante({ ...comp, estado: 'pendiente', intentos: 0, secuencial, clave_acceso: null, xml_firmado: null })
     .catch(() => {});
-  res.json({ ok: true, estado: 'pendiente' });
+  res.json({ ok: true, estado: 'pendiente', secuencial });
 });
 
 // POST /api/comprobantes/:id/reenviar-correo  — reintenta SOLO el envío del correo

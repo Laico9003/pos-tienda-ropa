@@ -30,8 +30,8 @@ export default function Comprobantes() {
 
   async function reintentar(id) {
     try {
-      await api.post(`/api/comprobantes/${id}/reintentar`);
-      toast.ok('Reintento encolado');
+      const r = await api.post(`/api/comprobantes/${id}/reintentar`);
+      toast.ok(r?.secuencial ? `Reintento encolado (N.º ${r.secuencial})` : 'Reintento encolado');
       setTimeout(cargar, 1500);
     } catch (e) { toast.error(e.message); }
   }
