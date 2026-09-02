@@ -104,6 +104,10 @@ export function construirFactura({ venta, items, pagos, negocio, comprobante }) 
     : (venta.cliente_nombre || 'CONSUMIDOR FINAL').slice(0, 300);
 
   // ---- Clave de acceso ----
+  // El código numérico se deriva del id del comprobante (no aleatorio): así, si
+  // la clave se regenera (reintento, doble procesamiento), sale SIEMPRE idéntica.
+  // Un código numérico distinto entre el XML recibido y la consulta de
+  // autorización deja el comprobante en "NO_ENCONTRADO" para siempre.
   const claveAcceso = comprobante.clave_acceso || generarClaveAcceso({
     fecha,
     codDoc: '01',
@@ -112,6 +116,9 @@ export function construirFactura({ venta, items, pagos, negocio, comprobante }) 
     estab: comprobante.estab,
     ptoEmi: comprobante.pto_emi,
     secuencial: comprobante.secuencial,
+    codigoNumerico: comprobante.id
+      ? String(comprobante.id).padStart(8, '0').slice(-8)
+      : undefined,
   });
 
   const rimpe =

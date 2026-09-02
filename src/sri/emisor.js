@@ -2,7 +2,7 @@ import dnsp from 'node:dns/promises';
 import { signInvoiceXml } from 'ec-sri-invoice-signer';
 import nodemailer from 'nodemailer';
 import MailComposer from 'nodemailer/lib/mail-composer/index.js';
-import { consulta } from '../db/pool.js';
+import { consulta, pool } from '../db/pool.js';
 import { descifrar } from './cifrado.js';
 import { construirFactura } from './construirFactura.js';
 import { facturaXml } from './xml.js';
@@ -38,8 +38,33 @@ function reintentarLuego(id, comp, motivo) {
   });
 }
 
-/** Procesa un comprobante avanzándolo un paso. Devuelve el nuevo estado. */
+// Namespace arbitrario para los pg_advisory_lock de comprobantes.
+const LOCK_NS = 4270;
+
+/**
+ * Procesa un comprobante avanzándolo un paso. Devuelve el nuevo estado.
+ * Toma un lock de asesoría de PostgreSQL por `comp.id` para que el worker y una
+ * llamada directa (p. ej. "Reintentar") nunca lo procesen a la vez: dos firmas
+ * simultáneas generarían claves de acceso distintas y el SRI dejaría el
+ * comprobante en "NO_ENCONTRADO".
+ */
 export async function procesarComprobante(comp) {
+  const cliente = await pool.connect();
+  let tengoLock = false;
+  try {
+    const r = await cliente.query('SELECT pg_try_advisory_lock($1, $2) AS ok', [LOCK_NS, comp.id]);
+    tengoLock = r.rows[0]?.ok === true;
+    if (!tengoLock) return comp.estado; // otro proceso ya lo está trabajando
+    return await procesarComprobanteInterno(comp);
+  } finally {
+    if (tengoLock) {
+      await cliente.query('SELECT pg_advisory_unlock($1, $2)', [LOCK_NS, comp.id]).catch(() => {});
+    }
+    cliente.release();
+  }
+}
+
+async function procesarComprobanteInterno(comp) {
   const { venta, items, pagos, negocio } = await traerContexto(comp.venta_id);
   if (!negocio?.certificado_p12 || !negocio?.certificado_clave_cif) {
     await guardar(comp.id, {
