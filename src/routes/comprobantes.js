@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { consulta } from '../db/pool.js';
-import { autenticar, requiereRol } from '../middleware/auth.js';
+import { autenticar, requiereRol, tiendaSeleccionada } from '../middleware/auth.js';
 import { ErrorHttp } from '../middleware/errores.js';
 import { procesarComprobante } from '../sri/emisor.js';
 import { construirFactura } from '../sri/construirFactura.js';
@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
     params.push(req.usuario.tienda_id);
     filtros.push(`v.tienda_id = $${params.length}`);
   } else if (req.query.tienda_id) {
-    params.push(Number(req.query.tienda_id));
+    params.push(await tiendaSeleccionada(req));
     filtros.push(`v.tienda_id = $${params.length}`);
   }
   if (req.query.estado) { params.push(String(req.query.estado)); filtros.push(`c.estado = $${params.length}`); }

@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/categorias
-router.post('/', requiereRol('admin', 'bodega'), async (req, res) => {
+router.post('/', requiereRol('admin'), async (req, res) => {
   const nombre = String(requerido(req.body.nombre, 'nombre')).trim();
   const { rows } = await consulta(
     `INSERT INTO categorias (nombre) VALUES ($1) RETURNING id, nombre, activo`,
@@ -33,7 +33,7 @@ router.post('/', requiereRol('admin', 'bodega'), async (req, res) => {
 });
 
 // PUT /api/categorias/:id
-router.put('/:id', requiereRol('admin', 'bodega'), async (req, res) => {
+router.put('/:id', requiereRol('admin'), async (req, res) => {
   const { nombre, activo } = req.body;
   const { rows } = await consulta(
     `UPDATE categorias SET
@@ -49,7 +49,7 @@ router.put('/:id', requiereRol('admin', 'bodega'), async (req, res) => {
 
 // DELETE /api/categorias/:id
 // Si la categoría tiene productos, se desactiva en lugar de borrarse.
-router.delete('/:id', requiereRol('admin', 'bodega'), async (req, res) => {
+router.delete('/:id', requiereRol('admin'), async (req, res) => {
   const { id } = req.params;
   const enUso = await consulta(`SELECT 1 FROM productos WHERE categoria_id = $1 LIMIT 1`, [id]);
 

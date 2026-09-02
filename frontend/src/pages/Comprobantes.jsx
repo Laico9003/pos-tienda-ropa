@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, abrirArchivo } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { useToast } from '../components/Toast.jsx';
+import SelectorTienda from '../components/SelectorTienda.jsx';
 import { dinero, fecha } from '../util.js';
 
 const ESTADO_CLASE = {
@@ -18,15 +19,16 @@ export default function Comprobantes() {
   const toast = useToast();
   const [rows, setRows] = useState([]);
   const [estado, setEstado] = useState('');
+  const [tiendaId, setTiendaId] = useState('');   // '' = todas
   const [detalle, setDetalle] = useState(null);
 
   async function cargar() {
     try {
-      const r = await api.get(`/api/comprobantes?limite=200${estado ? `&estado=${estado}` : ''}`);
+      const r = await api.get(`/api/comprobantes?limite=200${estado ? `&estado=${estado}` : ''}${tiendaId ? `&tienda_id=${tiendaId}` : ''}`);
       setRows(r.comprobantes || []);
     } catch (e) { toast.error(e.message); }
   }
-  useEffect(() => { cargar(); }, [estado]);
+  useEffect(() => { cargar(); }, [estado, tiendaId]);
 
   async function reintentar(id) {
     try {
@@ -59,6 +61,11 @@ export default function Comprobantes() {
         <button className="btn-secundario" onClick={cargar}>Actualizar</button>
       </div>
 
+      {esAdmin && (
+        <div className="filtros">
+          <SelectorTienda value={tiendaId} onChange={setTiendaId} />
+        </div>
+      )}
       <div className="filtros">
         <select value={estado} onChange={(e) => setEstado(e.target.value)}>
           <option value="">Todos los estados</option>

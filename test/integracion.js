@@ -190,9 +190,21 @@ async function main() {
       pagos: [{ metodo: 'transferencia', monto: 14.9, documento: 'TR-2' }] } });
     ok(r.status === 400 && /banco/i.test(r.datos.error || ''), 'transferencia sin banco => 400', r.datos);
 
-    console.log('\n— Dashboard —');
+    console.log('\n— Permisos: módulos administrativos (solo admin) —');
     r = await api('GET', '/api/reportes/dashboard', { token: tokenVendedor });
-    ok(r.status === 200, 'dashboard responde', r.status);
+    ok(r.status === 403, 'vendedor NO puede ver el Dashboard => 403', r.status);
+    r = await api('GET', '/api/ventas', { token: tokenVendedor });
+    ok(r.status === 403, 'vendedor NO puede ver el historial de Ventas => 403', r.status);
+    r = await api('GET', '/api/cajas', { token: tokenVendedor });
+    ok(r.status === 403, 'vendedor NO puede ver el historial de Caja => 403', r.status);
+    r = await api('PUT', '/api/categorias/1', { token: tokenVendedor, body: { nombre: 'x' } });
+    ok(r.status === 403, 'vendedor NO puede editar categorías => 403', r.status);
+    r = await api('DELETE', '/api/categorias/1', { token: tokenVendedor });
+    ok(r.status === 403, 'vendedor NO puede eliminar categorías => 403', r.status);
+
+    console.log('\n— Dashboard —');
+    r = await api('GET', '/api/reportes/dashboard', { token: tokenAdmin });
+    ok(r.status === 200, 'dashboard responde (admin)', r.status);
     igual(r.datos.ventas_hoy.cantidad, 1, 'dashboard: 1 venta hoy');
     igual(Number(r.datos.ventas_hoy.monto), 41.7, 'dashboard: monto de hoy = 41.70');
     igual(r.datos.ventas_hoy.unidades, 3, 'dashboard: 3 unidades hoy');
@@ -256,8 +268,8 @@ async function main() {
     ok(r.status === 200 && r.datos.caja.resultado === 'cuadrada' && Number(r.datos.caja.diferencia) === 0,
       'cierra CAJA CUADRADA, diferencia $0.00', r.datos.caja);
 
-    r = await api('GET', '/api/cajas', { token: tokenVendedor });
-    ok(r.datos.some((c) => c.id === cajaId && c.estado === 'cerrada'), 'la caja cerrada aparece en el historial');
+    r = await api('GET', '/api/cajas', { token: tokenAdmin });
+    ok(r.datos.some((c) => c.id === cajaId && c.estado === 'cerrada'), 'la caja cerrada aparece en el historial (admin)');
 
     r = await api('POST', `/api/cajas/${cajaId}/cerrar`, { token: tokenVendedor, body: { desglose_cierre: {} } });
     ok(r.status === 409, 'no se puede cerrar dos veces => 409');
@@ -281,6 +293,50 @@ async function main() {
 
     r = await api('GET', '/api/productos/buscar?codigo=GORRA-1', { token: tokenAdmin });
     ok(r.datos.stock === 0, 'stock final de la gorra = 0 (no quedó negativo)', r.datos?.stock);
+
+    console.log('\n— Separación por tienda (admin) —');
+    // Producto solo de la Tienda 2 (stock inicial en tienda_id 2)
+    r = await api('POST', '/api/productos', {
+      token: tokenAdmin,
+      body: { nombre: 'Bufanda Norte', variantes: [{ codigo_barras: 'BUF-N2', precio_venta: 12,
+        stock_inicial: [{ tienda_id: 2, cantidad: 7 }] }] },
+    });
+    ok(r.status === 201, 'admin crea producto con stock en Tienda 2', r.status);
+
+    r = await api('GET', '/api/productos?tienda_id=1&limite=200', { token: tokenAdmin });
+    const nombresT1 = (r.datos.productos || []).map((p) => p.nombre);
+    ok(!nombresT1.includes('Bufanda Norte'), 'Productos Tienda 1 NO muestra el producto de Tienda 2', nombresT1);
+    ok(nombresT1.includes('Blusa manga larga'), 'Productos Tienda 1 sí muestra los suyos', nombresT1);
+
+    r = await api('GET', '/api/productos?tienda_id=2&limite=200', { token: tokenAdmin });
+    const nombresT2 = (r.datos.productos || []).map((p) => p.nombre);
+    ok(nombresT2.includes('Bufanda Norte'), 'Productos Tienda 2 muestra su producto', nombresT2);
+    ok(!nombresT2.includes('Blusa manga larga'), 'Productos Tienda 2 NO muestra los de Tienda 1', nombresT2);
+
+    r = await api('GET', '/api/inventario/stock?tienda_id=2', { token: tokenAdmin });
+    const t2 = r.datos.find((x) => x.codigo_barras === 'BUF-N2');
+    ok(t2 && t2.stock === 7, 'Inventario Tienda 2: stock de la bufanda = 7', t2);
+    r = await api('GET', '/api/inventario/stock?tienda_id=1', { token: tokenAdmin });
+    const t1 = r.datos.find((x) => x.codigo_barras === 'BUF-N2');
+    ok(!t1 || t1.stock === 0, 'Inventario Tienda 1: la bufanda no tiene stock', t1);
+
+    // Venta en la Tienda 2 (el admin puede indicar la tienda en el cuerpo)
+    const rv = await api('GET', '/api/productos/buscar?codigo=BUF-N2&tienda_id=2', { token: tokenAdmin });
+    r = await api('POST', '/api/ventas', {
+      token: tokenAdmin,
+      body: { tienda_id: 2, items: [{ variante_id: rv.datos.variante_id, cantidad: 1 }],
+        pagos: [{ metodo: 'efectivo', monto: 12 }] },
+    });
+    ok(r.status === 201, 'admin registra una venta en la Tienda 2', r.status);
+    const ventaT2 = r.datos.id;
+
+    r = await api('GET', '/api/ventas?tienda_id=2&desde=2000-01-01&hasta=2999-01-01&limite=200', { token: tokenAdmin });
+    ok(r.datos.ventas.some((v) => v.id === ventaT2), 'Ventas Tienda 2 incluye la venta nueva');
+    r = await api('GET', '/api/ventas?tienda_id=1&desde=2000-01-01&hasta=2999-01-01&limite=200', { token: tokenAdmin });
+    ok(!r.datos.ventas.some((v) => v.id === ventaT2), 'Ventas Tienda 1 NO incluye la venta de Tienda 2');
+
+    r = await api('GET', '/api/ventas?tienda_id=999', { token: tokenAdmin });
+    ok(r.status === 400, 'tienda_id inexistente => 400', r.status);
   } finally {
     if (servidor) await new Promise((res) => servidor.close(res));
     await pool.end();

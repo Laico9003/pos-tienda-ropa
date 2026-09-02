@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { consulta, conTransaccion } from '../db/pool.js';
-import { autenticar, requiereRol, tiendaObjetivo } from '../middleware/auth.js';
+import { autenticar, requiereRol, tiendaObjetivo, tiendaSeleccionada } from '../middleware/auth.js';
 import { ErrorHttp } from '../middleware/errores.js';
 import { aNumero, redondear2 } from '../utils/validacion.js';
 
@@ -168,14 +168,13 @@ router.post('/:id/cerrar', puedeCaja, async (req, res) => {
   res.json({ caja: upd[0] });
 });
 
-// GET /api/cajas  — historial
-router.get('/', async (req, res) => {
+// GET /api/cajas  — historial de cajas (SOLO admin)
+router.get('/', requiereRol('admin'), async (req, res) => {
   const params = [];
   const filtros = [];
-  if (req.usuario.rol === 'admin') {
-    if (req.query.tienda_id) { params.push(Number(req.query.tienda_id)); filtros.push(`c.tienda_id = $${params.length}`); }
-  } else {
-    params.push(req.usuario.tienda_id); filtros.push(`c.tienda_id = $${params.length}`);
+  if (req.query.tienda_id) {
+    params.push(await tiendaSeleccionada(req));
+    filtros.push(`c.tienda_id = $${params.length}`);
   }
   if (req.query.desde) { params.push(req.query.desde); filtros.push(`c.abierta_en >= $${params.length}`); }
   if (req.query.hasta) { params.push(req.query.hasta); filtros.push(`c.abierta_en <= $${params.length}`); }

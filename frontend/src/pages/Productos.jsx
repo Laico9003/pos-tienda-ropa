@@ -3,42 +3,53 @@ import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { useToast } from '../components/Toast.jsx';
 import SelectorImagen from '../components/SelectorImagen.jsx';
+import SelectorTienda from '../components/SelectorTienda.jsx';
 import { dinero, nombreVariante } from '../util.js';
 
 const varianteVacia = () => ({ talla: '', color: '', codigo_barras: '', precio_compra: '', precio_venta: '', stock_inicial: '' });
 
 export default function Productos() {
-  const { puedeInventario, usuario } = useAuth();
+  const { puedeInventario, esAdmin, usuario } = useAuth();
   const toast = useToast();
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
+  const [tiendaId, setTiendaId] = useState('');   // '' = todas (solo admin ve el selector)
   const [abierto, setAbierto] = useState(null); // id de producto expandido
   const [modalNuevo, setModalNuevo] = useState(false);
   const [modalCategorias, setModalCategorias] = useState(false);
 
+  // Tienda sobre la que operan las altas/stock: la elegida, o la propia si es "Todas".
+  const tiendaOperativa = tiendaId ? Number(tiendaId) : usuario.tienda_id;
+
   async function cargar() {
     try {
       const [pr, ca] = await Promise.all([
-        api.get(`/api/productos?limite=200${q ? `&q=${encodeURIComponent(q)}` : ''}${cat ? `&categoria_id=${cat}` : ''}`),
+        api.get(`/api/productos?limite=200${q ? `&q=${encodeURIComponent(q)}` : ''}${cat ? `&categoria_id=${cat}` : ''}${tiendaId ? `&tienda_id=${tiendaId}` : ''}`),
         api.get('/api/categorias?incluir_inactivas=true'),
       ]);
       setProductos(pr.productos || []);
       setCategorias(ca || []);
     } catch (e) { toast.error(e.message); }
   }
-  useEffect(() => { cargar(); }, [q, cat]);
+  useEffect(() => { cargar(); }, [q, cat, tiendaId]);
 
   return (
     <div className="pagina">
       <div className="pagina-cab">
         <h1>Productos</h1>
         <div className="cab-acciones">
-          <button className="btn-secundario" onClick={() => setModalCategorias(true)}>Categorías</button>
+          {esAdmin && <button className="btn-secundario" onClick={() => setModalCategorias(true)}>Categorías</button>}
           {puedeInventario && <button className="btn-primario" onClick={() => setModalNuevo(true)}>+ Nuevo producto</button>}
         </div>
       </div>
+
+      {esAdmin && (
+        <div className="filtros">
+          <SelectorTienda value={tiendaId} onChange={setTiendaId} />
+        </div>
+      )}
 
       <div className="filtros">
         <input placeholder="Buscar por nombre o código…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -60,7 +71,7 @@ export default function Productos() {
                 expandido={abierto === p.id}
                 onToggle={() => setAbierto(abierto === p.id ? null : p.id)}
                 puedeEditar={puedeInventario}
-                tiendaId={usuario.tienda_id}
+                tiendaId={tiendaOperativa}
                 onCambio={cargar} />
             );
           })}
@@ -69,7 +80,7 @@ export default function Productos() {
       </table>
 
       {modalNuevo && (
-        <ModalNuevoProducto categorias={categorias.filter((c) => c.activo)} tiendaId={usuario.tienda_id}
+        <ModalNuevoProducto categorias={categorias.filter((c) => c.activo)} tiendaId={tiendaOperativa}
           onCerrar={() => setModalNuevo(false)} onCreado={() => { setModalNuevo(false); cargar(); }} />
       )}
       {modalCategorias && (

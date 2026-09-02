@@ -41,13 +41,15 @@ export function AuthProvider({ children }) {
   }
 
   const esAdmin = usuario?.rol === 'admin';
+  const esVendedor = usuario?.rol === 'vendedor';
+  const esBodega = usuario?.rol === 'bodega';
   const puedeVender = usuario?.rol === 'admin' || usuario?.rol === 'vendedor';
   const puedeInventario = usuario?.rol === 'admin' || usuario?.rol === 'bodega';
 
   return (
     <AuthContext.Provider value={{
       usuario, negocio, setNegocio, cargando, entrar, salir,
-      esAdmin, puedeVender, puedeInventario,
+      esAdmin, esVendedor, esBodega, puedeVender, puedeInventario,
     }}>
       {children}
     </AuthContext.Provider>

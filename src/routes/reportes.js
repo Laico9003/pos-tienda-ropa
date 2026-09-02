@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { consulta } from '../db/pool.js';
-import { autenticar, tiendaObjetivo } from '../middleware/auth.js';
-import { ErrorHttp } from '../middleware/errores.js';
+import { autenticar, requiereRol, tiendaSeleccionada } from '../middleware/auth.js';
 import { rangoPorDefecto } from '../utils/validacion.js';
 
 const router = Router();
 router.use(autenticar);
+// El Dashboard y todos los reportes son exclusivos del administrador.
+router.use(requiereRol('admin'));
 
 function rango(req) {
   const def = rangoPorDefecto(Number(req.query.dias) || 30);
@@ -20,8 +21,7 @@ function rango(req) {
 //   admin puede pasar ?tienda_id= ; vendedor/bodega ven su tienda
 // ---------------------------------------------------------------------------
 router.get('/dashboard', async (req, res) => {
-  const tiendaId = tiendaObjetivo(req);
-  if (!tiendaId) throw new ErrorHttp(400, 'No se pudo determinar la tienda');
+  const tiendaId = await tiendaSeleccionada(req);
   const umbralBajo = Number(process.env.STOCK_BAJO_UMBRAL) || 5;
 
   const [hoy, porMetodo, topHistorico, serieMeses, stockBajo, resumenMeses, costoMes, ultimasVentas, totales] =
@@ -165,7 +165,7 @@ router.get('/dashboard', async (req, res) => {
 // GET /api/reportes/ventas-por-dia?desde=&hasta=
 // ---------------------------------------------------------------------------
 router.get('/ventas-por-dia', async (req, res) => {
-  const tiendaId = tiendaObjetivo(req);
+  const tiendaId = await tiendaSeleccionada(req);
   const { desde, hasta } = rango(req);
   const { rows } = await consulta(
     `SELECT d::date AS fecha,
@@ -187,7 +187,7 @@ router.get('/ventas-por-dia', async (req, res) => {
 // GET /api/reportes/top-productos?desde=&hasta=&limite=10
 // ---------------------------------------------------------------------------
 router.get('/top-productos', async (req, res) => {
-  const tiendaId = tiendaObjetivo(req);
+  const tiendaId = await tiendaSeleccionada(req);
   const { desde, hasta } = rango(req);
   const limite = Math.min(50, Math.max(1, Number(req.query.limite) || 10));
   const { rows } = await consulta(
@@ -211,7 +211,7 @@ router.get('/top-productos', async (req, res) => {
 // GET /api/reportes/ventas-por-metodo?desde=&hasta=
 // ---------------------------------------------------------------------------
 router.get('/ventas-por-metodo', async (req, res) => {
-  const tiendaId = tiendaObjetivo(req);
+  const tiendaId = await tiendaSeleccionada(req);
   const { desde, hasta } = rango(req);
   const { rows } = await consulta(
     `SELECT pg.metodo,
@@ -233,10 +233,14 @@ router.get('/ventas-por-metodo', async (req, res) => {
 //   Lista de pagos para conciliar contra el banco.
 // ---------------------------------------------------------------------------
 router.get('/pagos', async (req, res) => {
-  const tiendaId = tiendaObjetivo(req);
   const { desde, hasta } = rango(req);
-  const params = [tiendaId, desde, hasta];
-  const filtros = ['v.tienda_id = $1', "v.estado = 'completada'", 'v.creado_en::date BETWEEN $2::date AND $3::date'];
+  const params = [desde, hasta];
+  const filtros = ["v.estado = 'completada'", 'v.creado_en::date BETWEEN $1::date AND $2::date'];
+  // Sin ?tienda_id → todas las tiendas; con ?tienda_id → esa (validada).
+  if (req.query.tienda_id) {
+    params.push(await tiendaSeleccionada(req));
+    filtros.push(`v.tienda_id = $${params.length}`);
+  }
   if (req.query.metodo) { params.push(String(req.query.metodo)); filtros.push(`pg.metodo = $${params.length}`); }
   if (req.query.banco) { params.push(String(req.query.banco)); filtros.push(`pg.banco = $${params.length}`); }
   if (req.query.verificado === 'true' || req.query.verificado === 'false') {

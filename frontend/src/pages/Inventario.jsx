@@ -3,29 +3,40 @@ import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { useToast } from '../components/Toast.jsx';
 import ImportarFacturaXml from '../components/ImportarFacturaXml.jsx';
+import SelectorTienda from '../components/SelectorTienda.jsx';
 import { fecha, nombreVariante } from '../util.js';
 
+// Parámetro tienda_id para las consultas (solo el admin cambia de tienda).
+const qTienda = (id) => (id ? `&tienda_id=${id}` : '');
+const qTienda1 = (id) => (id ? `?tienda_id=${id}` : '');
+
 export default function Inventario() {
-  const { usuario } = useAuth();
+  const { usuario, esAdmin } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState('stock');
+  const [tiendaId, setTiendaId] = useState(String(usuario.tienda_id ?? ''));
 
   return (
     <div className="pagina">
       <div className="pagina-cab"><h1>Inventario</h1></div>
+      {esAdmin && (
+        <div className="filtros">
+          <SelectorTienda value={tiendaId} onChange={setTiendaId} conTodas={false} />
+        </div>
+      )}
       <div className="tabs">
         <button className={tab === 'stock' ? 'activo' : ''} onClick={() => setTab('stock')}>Stock</button>
         <button className={tab === 'entrada' ? 'activo' : ''} onClick={() => setTab('entrada')}>Ingreso de mercadería</button>
         <button className={tab === 'kardex' ? 'activo' : ''} onClick={() => setTab('kardex')}>Movimientos</button>
       </div>
-      {tab === 'stock' && <Stock />}
-      {tab === 'entrada' && <Entrada tiendaId={usuario.tienda_id} onListo={() => toast.ok('Stock actualizado')} />}
-      {tab === 'kardex' && <Kardex />}
+      {tab === 'stock' && <Stock tiendaId={tiendaId} />}
+      {tab === 'entrada' && <Entrada tiendaId={tiendaId} onListo={() => toast.ok('Stock actualizado')} />}
+      {tab === 'kardex' && <Kardex tiendaId={tiendaId} />}
     </div>
   );
 }
 
-function Stock() {
+function Stock({ tiendaId }) {
   const toast = useToast();
   const [rows, setRows] = useState([]);
   const [soloBajo, setSoloBajo] = useState(false);
@@ -33,15 +44,18 @@ function Stock() {
 
   async function cargar() {
     try {
-      const r = soloBajo ? (await api.get('/api/inventario/stock-bajo')).items : await api.get('/api/inventario/stock');
+      const r = soloBajo
+        ? (await api.get(`/api/inventario/stock-bajo${qTienda1(tiendaId)}`)).items
+        : await api.get(`/api/inventario/stock${qTienda1(tiendaId)}`);
       setRows(r);
     } catch (e) { toast.error(e.message); }
   }
-  useEffect(() => { cargar(); }, [soloBajo]);
+  useEffect(() => { cargar(); }, [soloBajo, tiendaId]);
 
   async function guardarAjuste() {
     try {
       await api.post('/api/inventario/ajuste', {
+        tienda_id: tiendaId ? Number(tiendaId) : undefined,
         variante_id: ajuste.variante_id,
         cantidad_nueva: Number(ajuste.cantidad_nueva),
         motivo: ajuste.motivo || 'Ajuste manual',
@@ -95,7 +109,7 @@ function Stock() {
   );
 }
 
-function Entrada({ onListo }) {
+function Entrada({ tiendaId, onListo }) {
   const toast = useToast();
   const [busqueda, setBusqueda] = useState('');
   const [items, setItems] = useState([]); // {variante_id, etiqueta, cantidad}
@@ -106,7 +120,7 @@ function Entrada({ onListo }) {
     e.preventDefault();
     if (!busqueda.trim()) return;
     try {
-      const v = await api.get(`/api/productos/buscar?codigo=${encodeURIComponent(busqueda.trim())}`);
+      const v = await api.get(`/api/productos/buscar?codigo=${encodeURIComponent(busqueda.trim())}${qTienda(tiendaId)}`);
       setItems((xs) => {
         if (xs.some((x) => x.variante_id === v.variante_id)) return xs;
         return [...xs, { variante_id: v.variante_id, etiqueta: `${v.producto} ${nombreVariante(v)}`, cantidad: 1 }];
@@ -122,6 +136,7 @@ function Entrada({ onListo }) {
     setGuardando(true);
     try {
       await api.post('/api/inventario/entrada', {
+        tienda_id: tiendaId ? Number(tiendaId) : undefined,
         referencia: referencia || undefined,
         items: items.map((x) => ({ variante_id: x.variante_id, cantidad: Number(x.cantidad) })),
       });
@@ -139,7 +154,7 @@ function Entrada({ onListo }) {
           <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Escanear o escribir código de barras…" autoFocus />
         </form>
-        <ImportarFacturaXml onListo={onListo} />
+        <ImportarFacturaXml onListo={onListo} tiendaId={tiendaId} />
       </div>
 
       <table className="tabla">
@@ -169,15 +184,15 @@ function Entrada({ onListo }) {
   );
 }
 
-function Kardex() {
+function Kardex({ tiendaId }) {
   const toast = useToast();
   const [rows, setRows] = useState([]);
   const [tipo, setTipo] = useState('');
 
   useEffect(() => {
-    api.get(`/api/inventario/movimientos?limite=200${tipo ? `&tipo=${tipo}` : ''}`)
+    api.get(`/api/inventario/movimientos?limite=200${tipo ? `&tipo=${tipo}` : ''}${qTienda(tiendaId)}`)
       .then(setRows).catch((e) => toast.error(e.message));
-  }, [tipo]);
+  }, [tipo, tiendaId]);
 
   const etiquetaTipo = {
     entrada: '📥 Entrada', venta: '🛒 Venta', ajuste: '⚙️ Ajuste',

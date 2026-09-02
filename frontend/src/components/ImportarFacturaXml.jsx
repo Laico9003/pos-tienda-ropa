@@ -45,7 +45,7 @@ function parsearFacturaXml(texto) {
   return { factura, items };
 }
 
-export default function ImportarFacturaXml({ onListo }) {
+export default function ImportarFacturaXml({ onListo, tiendaId }) {
   const { negocio } = useAuth();
   const toast = useToast();
   const inputRef = useRef(null);
@@ -76,7 +76,9 @@ export default function ImportarFacturaXml({ onListo }) {
     try {
       const texto = await file.text();
       const { factura: fac, items } = parsearFacturaXml(texto);
-      const prev = await api.post('/api/inventario/importar/previsualizar', { items });
+      const prev = await api.post('/api/inventario/importar/previsualizar', {
+        tienda_id: tiendaId ? Number(tiendaId) : undefined, items,
+      });
       const [cats] = await Promise.all([api.get('/api/categorias')]);
       setCategorias(cats || []);
       setFactura(fac);
@@ -121,6 +123,7 @@ export default function ImportarFacturaXml({ onListo }) {
     setGuardando(true);
     try {
       const r = await api.post('/api/inventario/importar', {
+        tienda_id: tiendaId ? Number(tiendaId) : undefined,
         referencia: referencia || undefined,
         factura,
         items: filas.map((f) => ({

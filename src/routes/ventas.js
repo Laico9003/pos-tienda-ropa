@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { consulta, conTransaccion } from '../db/pool.js';
-import { autenticar, requiereRol, tiendaObjetivo } from '../middleware/auth.js';
+import { autenticar, requiereRol, tiendaObjetivo, tiendaSeleccionada } from '../middleware/auth.js';
 import { ErrorHttp } from '../middleware/errores.js';
 import { aNumero, aEntero, redondear2 } from '../utils/validacion.js';
 import { upsertCliente } from './clientes.js';
@@ -263,20 +263,16 @@ async function encolarFacturaAuto(ventaId) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/ventas  — historial
-//   ?desde=  ?hasta=  ?usuario_id=  ?estado=  ?tienda_id= (admin)  ?pagina=  ?limite=
+// GET /api/ventas  — historial (módulo administrativo: SOLO admin)
+//   ?desde=  ?hasta=  ?usuario_id=  ?estado=  ?tienda_id=  ?pagina=  ?limite=
 // ---------------------------------------------------------------------------
-router.get('/', async (req, res) => {
+router.get('/', requiereRol('admin'), async (req, res) => {
   const params = [];
   const filtros = [];
 
-  if (req.usuario.rol === 'admin') {
-    if (req.query.tienda_id) {
-      params.push(Number(req.query.tienda_id));
-      filtros.push(`v.tienda_id = $${params.length}`);
-    }
-  } else {
-    params.push(req.usuario.tienda_id);
+  // Admin: si indica una tienda se valida y se filtra; si no, ve todas.
+  if (req.query.tienda_id) {
+    params.push(await tiendaSeleccionada(req));
     filtros.push(`v.tienda_id = $${params.length}`);
   }
   if (req.query.usuario_id) {

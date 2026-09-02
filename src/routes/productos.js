@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { consulta, conTransaccion } from '../db/pool.js';
-import { autenticar, requiereRol, tiendaObjetivo } from '../middleware/auth.js';
+import { autenticar, requiereRol, tiendaObjetivo, tiendaSeleccionada } from '../middleware/auth.js';
 import { ErrorHttp } from '../middleware/errores.js';
 import { requerido, aNumero, aEntero } from '../utils/validacion.js';
 
@@ -14,6 +14,7 @@ function limpiar(valor) {
 // ---------------------------------------------------------------------------
 // GET /api/productos  — listado con stock de la tienda y sus variantes
 //   ?q= texto (nombre o código de barras)   ?categoria_id=   ?activo=true|false
+//   ?tienda_id=  (admin) → muestra SOLO los productos con stock en esa tienda
 //   ?pagina=1  ?limite=50
 // ---------------------------------------------------------------------------
 router.get('/', async (req, res) => {
@@ -21,9 +22,23 @@ router.get('/', async (req, res) => {
   const pagina = Math.max(1, Number(req.query.pagina) || 1);
   const limite = Math.min(100, Math.max(1, Number(req.query.limite) || 50));
 
+  // El catálogo es compartido entre tiendas. Si el admin elige una tienda en el
+  // panel de Productos, se limita a los productos que tienen stock registrado en
+  // ella (reutiliza la tabla `stock`; el POS no manda tienda_id y no se filtra).
+  const filtrarPorTienda = req.usuario.rol === 'admin' && req.query.tienda_id != null;
+  const tiendaFiltro = filtrarPorTienda ? await tiendaSeleccionada(req) : null;
+
   // params sólo para los filtros ($1, $2, ...)
   const params = [];
   const filtros = [];
+
+  if (tiendaFiltro != null) {
+    params.push(tiendaFiltro);
+    filtros.push(`EXISTS (
+      SELECT 1 FROM stock s2
+        JOIN producto_variantes v2 ON v2.id = s2.variante_id
+       WHERE v2.producto_id = p.id AND s2.tienda_id = $${params.length})`);
+  }
 
   if (req.query.q) {
     params.push(`%${req.query.q}%`);

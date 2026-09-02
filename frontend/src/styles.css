@@ -423,6 +423,16 @@ tr.conc-ok td { background: var(--ok-suave); }
 .tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid var(--borde); }
 .tabs button { border: none; background: none; padding: 10px 16px; font-weight: 600; color: var(--texto-sec); border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tabs button.activo { color: var(--primario); border-bottom-color: var(--primario); }
+
+/* Selector de tienda (Productos / Inventario / Ventas / Comprobantes) */
+.selector-tienda { margin-bottom: 0; border-bottom: none; gap: 6px; flex-wrap: wrap; }
+.selector-tienda button {
+  padding: 6px 14px; border: 1px solid var(--borde); border-radius: 999px;
+  background: var(--panel); font-size: 13px;
+}
+.selector-tienda button.activo {
+  color: #fff; background: var(--primario); border-color: var(--primario);
+}
 .entrada-pie { display: flex; gap: 10px; margin-top: 14px; }
 .entrada-pie input { flex: 1; padding: 9px 12px; border: 1px solid var(--borde); border-radius: 9px; }
 .entrada-cab { display: flex; gap: 10px; align-items: stretch; }

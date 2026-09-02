@@ -11,10 +11,10 @@ export default function Layout({ children }) {
 
   const enlaces = [
     { to: '/venta', txt: 'Punto de venta', k: 'venta' },
-    { to: '/dashboard', txt: 'Dashboard', k: 'dashboard' },
+    esAdmin && { to: '/dashboard', txt: 'Dashboard', k: 'dashboard' },
     { to: '/productos', txt: 'Productos', k: 'productos' },
     puedeInventario && { to: '/inventario', txt: 'Inventario', k: 'inventario' },
-    { to: '/ventas', txt: 'Ventas', k: 'ventas' },
+    esAdmin && { to: '/ventas', txt: 'Ventas', k: 'ventas' },
     { to: '/caja', txt: 'Caja', k: 'caja' },
     { to: '/comprobantes', txt: 'Comprobantes', k: 'comprobantes' },
     esAdmin && { to: '/usuarios', txt: 'Usuarios', k: 'usuarios' },

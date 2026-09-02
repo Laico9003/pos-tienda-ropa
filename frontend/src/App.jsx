@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './auth.jsx';
 import Layout from './components/Layout.jsx';
+import RutaRol from './components/RutaRol.jsx';
 import Login from './pages/Login.jsx';
 import POS from './pages/POS.jsx';
 import Dashboard from './pages/Dashboard.jsx';
@@ -32,13 +33,13 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/venta" replace />} />
         <Route path="/venta" element={<POS />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard" element={<RutaRol roles={['admin']}><Dashboard /></RutaRol>} />
         <Route path="/productos" element={<Productos />} />
-        <Route path="/inventario" element={<Inventario />} />
-        <Route path="/ventas" element={<Ventas />} />
+        <Route path="/inventario" element={<RutaRol roles={['admin', 'bodega']}><Inventario /></RutaRol>} />
+        <Route path="/ventas" element={<RutaRol roles={['admin']}><Ventas /></RutaRol>} />
         <Route path="/caja" element={<Caja />} />
-        <Route path="/usuarios" element={<Usuarios />} />
-        <Route path="/negocio" element={<Negocio />} />
+        <Route path="/usuarios" element={<RutaRol roles={['admin']}><Usuarios /></RutaRol>} />
+        <Route path="/negocio" element={<RutaRol roles={['admin']}><Negocio /></RutaRol>} />
         <Route path="/comprobantes" element={<Comprobantes />} />
         <Route path="*" element={<Navigate to="/venta" replace />} />
       </Routes>

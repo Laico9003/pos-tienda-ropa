@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { consulta, conTransaccion } from '../db/pool.js';
-import { autenticar, requiereRol, tiendaObjetivo } from '../middleware/auth.js';
+import { autenticar, requiereRol, tiendaObjetivo, tiendaSeleccionada } from '../middleware/auth.js';
 import { ErrorHttp } from '../middleware/errores.js';
 import { requerido, aNumero, aEntero } from '../utils/validacion.js';
 
@@ -105,7 +105,7 @@ router.post('/ajuste', requiereRol('admin', 'bodega'), async (req, res) => {
 // GET /api/inventario/stock  — stock actual de la tienda
 // ---------------------------------------------------------------------------
 router.get('/stock', async (req, res) => {
-  const tiendaId = tiendaObjetivo(req);
+  const tiendaId = await tiendaSeleccionada(req);
   const { rows } = await consulta(
     `SELECT v.id AS variante_id, p.nombre AS producto, v.talla, v.color,
             v.codigo_barras, v.precio_venta,
@@ -124,7 +124,7 @@ router.get('/stock', async (req, res) => {
 // GET /api/inventario/stock-bajo?umbral=5
 // ---------------------------------------------------------------------------
 router.get('/stock-bajo', async (req, res) => {
-  const tiendaId = tiendaObjetivo(req);
+  const tiendaId = await tiendaSeleccionada(req);
   const umbral = Number(req.query.umbral) || Number(process.env.STOCK_BAJO_UMBRAL) || 5;
   const { rows } = await consulta(
     `SELECT v.id AS variante_id, p.nombre AS producto, v.talla, v.color, v.codigo_barras,
@@ -145,7 +145,7 @@ router.get('/stock-bajo', async (req, res) => {
 //   ?variante_id=  ?tipo=  ?desde=  ?hasta=  ?limite=100
 // ---------------------------------------------------------------------------
 router.get('/movimientos', async (req, res) => {
-  const tiendaId = tiendaObjetivo(req);
+  const tiendaId = await tiendaSeleccionada(req);
   const params = [tiendaId];
   const filtros = ['m.tienda_id = $1'];
 

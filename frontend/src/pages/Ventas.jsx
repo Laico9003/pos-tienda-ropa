@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { useToast } from '../components/Toast.jsx';
 import FormularioCliente from '../components/FormularioCliente.jsx';
+import SelectorTienda from '../components/SelectorTienda.jsx';
 import { BANCOS_EC } from '../constants.js';
 import { dinero, fecha } from '../util.js';
 
@@ -30,17 +31,18 @@ function ListaVentas() {
   const [ventas, setVentas] = useState([]);
   const [desde, setDesde] = useState(haceISO(7));
   const [hasta, setHasta] = useState(hoyISO());
+  const [tiendaId, setTiendaId] = useState('');   // '' = todas
   const [detalle, setDetalle] = useState(null);
   const [modalFactura, setModalFactura] = useState(null); // datos del cliente para facturar
   const [facturando, setFacturando] = useState(false);
 
   async function cargar() {
     try {
-      const r = await api.get(`/api/ventas?desde=${desde}&hasta=${hasta}T23:59:59&limite=200`);
+      const r = await api.get(`/api/ventas?desde=${desde}&hasta=${hasta}T23:59:59&limite=200${tiendaId ? `&tienda_id=${tiendaId}` : ''}`);
       setVentas(r.ventas || []);
     } catch (e) { toast.error(e.message); }
   }
-  useEffect(() => { cargar(); }, [desde, hasta]);
+  useEffect(() => { cargar(); }, [desde, hasta, tiendaId]);
 
   async function verDetalle(id) {
     try { setDetalle(await api.get(`/api/ventas/${id}`)); }
@@ -85,6 +87,11 @@ function ListaVentas() {
 
   return (
     <>
+      {esAdmin && (
+        <div className="filtros">
+          <SelectorTienda value={tiendaId} onChange={setTiendaId} />
+        </div>
+      )}
       <div className="filtros">
         <label>Desde <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></label>
         <label>Hasta <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></label>
@@ -210,22 +217,25 @@ function ListaVentas() {
 }
 
 function Transferencias() {
+  const { esAdmin } = useAuth();
   const toast = useToast();
   const [data, setData] = useState(null);
   const [desde, setDesde] = useState(haceISO(30));
   const [hasta, setHasta] = useState(hoyISO());
   const [filtro, setFiltro] = useState('');
   const [banco, setBanco] = useState('');
+  const [tiendaId, setTiendaId] = useState('');
 
   async function cargar() {
     try {
       const q = new URLSearchParams({ metodo: 'transferencia', desde, hasta: `${hasta}T23:59:59` });
       if (filtro) q.set('verificado', filtro);
       if (banco) q.set('banco', banco);
+      if (tiendaId) q.set('tienda_id', tiendaId);
       setData(await api.get(`/api/reportes/pagos?${q}`));
     } catch (e) { toast.error(e.message); }
   }
-  useEffect(() => { cargar(); }, [desde, hasta, filtro, banco]);
+  useEffect(() => { cargar(); }, [desde, hasta, filtro, banco, tiendaId]);
 
   async function toggle(p) {
     try {
@@ -238,6 +248,11 @@ function Transferencias() {
 
   return (
     <>
+      {esAdmin && (
+        <div className="filtros">
+          <SelectorTienda value={tiendaId} onChange={setTiendaId} />
+        </div>
+      )}
       <div className="filtros">
         <label>Desde <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></label>
         <label>Hasta <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></label>

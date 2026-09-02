@@ -14,15 +14,20 @@ function resultado(dif) {
 }
 
 export default function Caja() {
+  const { esAdmin } = useAuth();
   const [tab, setTab] = useState('actual');
+  // El historial de caja es solo para administradores (el backend también lo exige).
+  const verHistorial = esAdmin && tab === 'historial';
   return (
     <div className="pagina">
       <div className="pagina-cab"><h1>Caja</h1></div>
       <div className="tabs">
         <button className={tab === 'actual' ? 'activo' : ''} onClick={() => setTab('actual')}>Caja actual</button>
-        <button className={tab === 'historial' ? 'activo' : ''} onClick={() => setTab('historial')}>Historial</button>
+        {esAdmin && (
+          <button className={tab === 'historial' ? 'activo' : ''} onClick={() => setTab('historial')}>Historial</button>
+        )}
       </div>
-      {tab === 'actual' ? <CajaActual /> : <HistorialCajas />}
+      {verHistorial ? <HistorialCajas /> : <CajaActual />}
     </div>
   );
 }

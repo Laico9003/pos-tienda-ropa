@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { ErrorHttp } from './errores.js';
+import { consulta } from '../db/pool.js';
 
 /** Verifica el token JWT y deja los datos del usuario en req.usuario. */
 export function autenticar(req, _res, next) {
@@ -29,7 +30,8 @@ export function requiereRol(...roles) {
 /**
  * Devuelve la tienda sobre la que opera la petición.
  * - admin: puede elegir con ?tienda_id= o body.tienda_id; si no, su tienda.
- * - vendedor / bodega: siempre quedan fijados a su propia tienda.
+ * - vendedor / bodega: siempre quedan fijados a su propia tienda (se ignora
+ *   cualquier tienda_id que manden por query o body).
  */
 export function tiendaObjetivo(req) {
   if (req.usuario.rol === 'admin') {
@@ -37,4 +39,20 @@ export function tiendaObjetivo(req) {
     return id ? Number(id) : req.usuario.tienda_id;
   }
   return req.usuario.tienda_id;
+}
+
+/**
+ * Igual que `tiendaObjetivo` pero además valida que la tienda exista y esté
+ * activa. Úsala en los endpoints de consulta que aceptan `?tienda_id` del
+ * navegador (separación por tienda del panel de administración).
+ * @returns {Promise<number>}
+ */
+export async function tiendaSeleccionada(req) {
+  const id = Number(tiendaObjetivo(req));
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new ErrorHttp(400, 'No se pudo determinar la tienda');
+  }
+  const { rows } = await consulta('SELECT 1 FROM tiendas WHERE id = $1 AND activo = true', [id]);
+  if (!rows[0]) throw new ErrorHttp(400, 'La tienda seleccionada no existe');
+  return id;
 }
