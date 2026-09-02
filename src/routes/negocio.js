@@ -144,4 +144,20 @@ router.put('/', requiereRol('admin'), async (req, res) => {
   res.json(limpiarNegocio(rows[0]));
 });
 
+// POST /api/negocio/reiniciar-secuencia  — vuelve la numeración de facturas a 1.
+// Solo admin y solo si todavía NO hay comprobantes de producción emitidos, para
+// no romper una serie ya entregada al SRI.
+router.post('/reiniciar-secuencia', requiereRol('admin'), async (req, res) => {
+  const { rows: prod } = await consulta(
+    `SELECT COUNT(*)::int AS n FROM comprobantes_sri WHERE ambiente = '2'`,
+  );
+  if (prod[0].n > 0) {
+    throw new ErrorHttp(409, `Ya hay ${prod[0].n} comprobante(s) de producción emitidos; no se puede reiniciar la numeración.`);
+  }
+  const tipo = String(req.body?.tipo || '01');
+  const desde = Number.isFinite(Number(req.body?.desde)) ? Math.max(0, Math.floor(Number(req.body.desde))) : 0;
+  await consulta(`UPDATE secuencias SET secuencial = $1 WHERE tipo = $2`, [desde, tipo]);
+  res.json({ ok: true, proximo: desde + 1 });
+});
+
 export default router;

@@ -111,6 +111,14 @@ export default function Negocio() {
     } catch (err) { toast.error(err.message); }
   }
 
+  async function reiniciarSecuencia() {
+    if (!window.confirm('¿Reiniciar la numeración de facturas a 1?\n\nSolo hazlo antes de emitir la primera factura de producción.')) return;
+    try {
+      const r = await api.post('/api/negocio/reiniciar-secuencia', {});
+      toast.ok(`Numeración reiniciada. La próxima factura será la N.º ${r.proximo}.`);
+    } catch (e) { toast.error(e.message); }
+  }
+
   async function quitarCertificado() {
     if (!window.confirm('¿Quitar el certificado guardado?')) return;
     try {
@@ -222,6 +230,12 @@ export default function Negocio() {
           </label>
         </div>
         <p className="nota-min">Si no la activas, la factura se emite con el botón "Factura electrónica" al terminar cada venta.</p>
+        <div className="modal-acciones" style={{ marginTop: 8, justifyContent: 'flex-start' }}>
+          <button type="button" className="btn-texto peligro" onClick={reiniciarSecuencia}>
+            Reiniciar numeración de facturas a 1
+          </button>
+        </div>
+        <p className="nota-min">Úsalo una sola vez, antes de emitir la primera factura de producción. Se bloquea si ya hay facturas de producción.</p>
       </div>
 
       {/* ---------- Firma electrónica ---------- */}
