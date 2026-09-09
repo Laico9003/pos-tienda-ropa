@@ -124,6 +124,23 @@ export default function Negocio() {
     } catch (e) { toast.error(e.message); }
   }
 
+  async function reiniciarDatos() {
+    if (!window.confirm(
+      'BORRAR TODOS LOS DATOS para entregar el sistema en cero.\n\n'
+      + 'Se elimina: productos, inventario, ventas, cajas, comprobantes, clientes y '
+      + 'todos los usuarios que no sean administrador.\n'
+      + 'Se conserva: tiendas, datos del negocio (certificado y correo) y el admin.\n\n'
+      + 'Esta acción NO se puede deshacer. ¿Continuar?',
+    )) return;
+    const frase = window.prompt('Para confirmar, escribe exactamente:  BORRAR TODO');
+    if (frase == null) return;
+    try {
+      const r = await api.post('/api/negocio/reiniciar-datos', { confirmacion: frase });
+      const b = r.borrado || {};
+      toast.ok(`Sistema en cero. Borrados: ${b.productos || 0} productos, ${b.ventas || 0} ventas, ${b.usuarios || 0} usuarios.`);
+    } catch (e) { toast.error(e.message); }
+  }
+
   async function quitarCertificado() {
     if (!window.confirm('¿Quitar el certificado guardado?')) return;
     try {
@@ -394,6 +411,20 @@ export default function Negocio() {
           <input type="checkbox" checked={saltarRecibo} onChange={(e) => cambiarSaltar(e.target.checked)} />
           No mostrar las opciones de recibo al terminar una venta (cobro rápido)
         </label>
+      </div>
+
+      {/* ---------- Zona de peligro ---------- */}
+      <div className="panel" style={{ maxWidth: 720, marginTop: 16, borderColor: 'var(--alerta)' }}>
+        <h2 className="peligro-txt">Zona de peligro</h2>
+        <p className="nota-min">
+          Deja el sistema <strong>en cero</strong> para entregarlo. Borra productos, inventario, ventas,
+          cajas, comprobantes, clientes y todos los usuarios que no sean administrador.
+          Conserva las tiendas, los datos del negocio (certificado y correo) y tu cuenta de administrador.
+          <strong> No se puede deshacer.</strong>
+        </p>
+        <button type="button" className="btn-secundario peligro" onClick={reiniciarDatos}>
+          Borrar todos los datos (dejar en cero)
+        </button>
       </div>
     </div>
   );

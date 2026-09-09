@@ -47,6 +47,8 @@ input, select { font-family: inherit; font-size: 14px; }
 .btn-secundario:hover { background: var(--bg); }
 .btn-texto { background: none; border: none; color: var(--primario); font-weight: 600; padding: 4px 6px; }
 .btn-texto.peligro { color: var(--alerta); }
+.btn-secundario.peligro { color: var(--alerta); border-color: var(--alerta); }
+.btn-secundario.peligro:hover { background: var(--alerta-suave); }
 .btn-mini { background: none; border: none; font-size: 13px; color: var(--texto-sec); padding: 2px 6px; }
 
 /* ---------- Login ---------- */

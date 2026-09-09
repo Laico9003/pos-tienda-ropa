@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import forge from 'node-forge';
-import { consulta } from '../db/pool.js';
+import { consulta, conTransaccion } from '../db/pool.js';
 import { autenticar, requiereRol } from '../middleware/auth.js';
 import { ErrorHttp } from '../middleware/errores.js';
 import { cifrar } from '../sri/cifrado.js';
@@ -174,6 +174,40 @@ router.post('/reiniciar-secuencia', requiereRol('admin'), async (req, res) => {
     [desde, tipo, ambiente],
   );
   res.json({ ok: true, ambiente, proximo: desde + 1 });
+});
+
+// POST /api/negocio/reiniciar-datos  — deja el sistema "en cero" para entregarlo.
+// Borra TODO el historial operativo (ventas, pagos, cajas, movimientos,
+// comprobantes), el catálogo (productos, variantes, stock), los clientes y los
+// usuarios que NO son admin. Conserva: tiendas, datos del negocio (incluidos
+// certificado y configuración de correo) y las cuentas de administrador.
+// Requiere body { confirmacion: 'BORRAR TODO' }.
+router.post('/reiniciar-datos', requiereRol('admin'), async (req, res) => {
+  if (String(req.body?.confirmacion || '').trim().toUpperCase() !== 'BORRAR TODO') {
+    throw new ErrorHttp(400, 'Para continuar debes enviar confirmacion: "BORRAR TODO".');
+  }
+
+  const resumen = await conTransaccion(async (cli) => {
+    const borrar = async (tabla) => (await cli.query(`DELETE FROM ${tabla}`)).rowCount;
+
+    const comprobantes = await borrar('comprobantes_sri');
+    const pagos = await borrar('pagos');
+    const items = await borrar('venta_items');
+    const movInv = await borrar('movimientos_inventario');
+    const movCaja = await borrar('movimientos_caja');
+    const ventas = await borrar('ventas');
+    const cajas = await borrar('cajas');
+    await borrar('stock');
+    await borrar('producto_variantes');
+    const productos = await borrar('productos');
+    const clientes = await borrar('clientes');
+    await borrar('secuencias');
+    const { rowCount: usuarios } = await cli.query(`DELETE FROM usuarios WHERE rol <> 'admin'`);
+
+    return { comprobantes, pagos, items, movInv, movCaja, ventas, cajas, productos, clientes, usuarios };
+  });
+
+  res.json({ ok: true, borrado: resumen });
 });
 
 export default router;

@@ -373,6 +373,36 @@ async function main() {
 
     r = await api('GET', '/api/ventas?tienda_id=999', { token: tokenAdmin });
     ok(r.status === 400, 'tienda_id inexistente => 400', r.status);
+
+    console.log('\n— Eliminar usuario —');
+    r = await api('POST', '/api/usuarios', {
+      token: tokenAdmin,
+      body: { nombre: 'Borrable', email: 'borrable@x.com', password: 'borra123', rol: 'vendedor', tienda_id: 1 },
+    });
+    const idBorrable = r.datos.id;
+    r = await api('DELETE', `/api/usuarios/${idBorrable}`, { token: tokenAdmin });
+    ok(r.status === 200 && r.datos.eliminado, 'admin elimina un usuario sin historial', r.datos);
+    r = await api('GET', '/api/usuarios', { token: tokenAdmin });
+    ok(!r.datos.some((u) => u.id === idBorrable), 'el usuario eliminado ya no aparece');
+    // Un vendedor CON ventas se desactiva en vez de borrarse
+    r = await api('DELETE', '/api/usuarios/2', { token: tokenAdmin });
+    ok(r.status === 200 && r.datos.desactivado, 'usuario con historial => se desactiva, no se borra', r.datos);
+    r = await api('DELETE', '/api/usuarios/1', { token: tokenAdmin });
+    ok(r.status === 400, 'un admin no puede eliminar su propia cuenta => 400', r.status);
+
+    console.log('\n— Reiniciar datos (entrega en cero) —');
+    r = await api('POST', '/api/negocio/reiniciar-datos', { token: tokenAdmin, body: { confirmacion: 'x' } });
+    ok(r.status === 400, 'reiniciar-datos sin la frase exacta => 400', r.status);
+    r = await api('POST', '/api/negocio/reiniciar-datos', { token: tokenAdmin, body: { confirmacion: 'BORRAR TODO' } });
+    ok(r.status === 200 && r.datos.ok, 'reiniciar-datos con la frase => 200', r.datos);
+    r = await api('GET', '/api/productos?limite=200', { token: tokenAdmin });
+    ok((r.datos.productos || []).length === 0, 'no quedan productos', r.datos.productos?.length);
+    r = await api('GET', '/api/usuarios', { token: tokenAdmin });
+    ok(r.datos.length === 1 && r.datos[0].rol === 'admin', 'solo queda el admin', r.datos.map((u) => u.rol));
+    r = await api('GET', '/api/comprobantes?limite=200', { token: tokenAdmin });
+    ok((r.datos.comprobantes || []).length === 0, 'no quedan comprobantes');
+    r = await api('GET', '/api/tiendas', { token: tokenAdmin });
+    ok(r.datos.length >= 2, 'las tiendas se conservan', r.datos.length);
   } finally {
     if (servidor) await new Promise((res) => servidor.close(res));
     await pool.end();

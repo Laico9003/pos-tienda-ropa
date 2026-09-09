@@ -98,4 +98,39 @@ router.put('/:id', async (req, res) => {
   res.json(rows[0]);
 });
 
+// DELETE /api/usuarios/:id
+// Si el usuario tiene historial (ventas, cajas, movimientos) no se puede borrar
+// por integridad referencial: en ese caso se desactiva.
+router.delete('/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (id === req.usuario.id) throw new ErrorHttp(400, 'No puedes eliminar tu propia cuenta');
+
+  const { rows: t } = await consulta('SELECT rol, activo FROM usuarios WHERE id = $1', [id]);
+  if (!t[0]) throw new ErrorHttp(404, 'Usuario no encontrado');
+
+  if (t[0].rol === 'admin' && t[0].activo) {
+    const { rows: c } = await consulta(
+      `SELECT COUNT(*)::int AS n FROM usuarios WHERE rol = 'admin' AND activo = true AND id <> $1`, [id],
+    );
+    if (c[0].n === 0) throw new ErrorHttp(409, 'Debe quedar al menos un administrador activo');
+  }
+
+  try {
+    const { rowCount } = await consulta('DELETE FROM usuarios WHERE id = $1', [id]);
+    if (!rowCount) throw new ErrorHttp(404, 'Usuario no encontrado');
+    invalidarEstadoUsuario(id);
+    res.json({ eliminado: true });
+  } catch (e) {
+    if (e.code === '23503') {
+      await consulta('UPDATE usuarios SET activo = false WHERE id = $1', [id]);
+      invalidarEstadoUsuario(id);
+      return res.json({
+        desactivado: true,
+        mensaje: 'El usuario tiene historial (ventas o cajas), se desactivó en lugar de eliminarlo.',
+      });
+    }
+    throw e;
+  }
+});
+
 export default router;

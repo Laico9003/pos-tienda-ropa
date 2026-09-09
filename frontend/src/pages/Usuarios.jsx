@@ -16,6 +16,15 @@ export default function Usuarios() {
   }
   useEffect(() => { cargar(); }, []);
 
+  async function eliminar(u) {
+    if (!window.confirm(`¿Eliminar al usuario "${u.nombre}" (${u.email})?\n\nSi tiene ventas o cajas registradas se desactivará en vez de borrarse.`)) return;
+    try {
+      const r = await api.del(`/api/usuarios/${u.id}`);
+      toast.ok(r.desactivado ? r.mensaje : 'Usuario eliminado');
+      cargar();
+    } catch (e) { toast.error(e.message); }
+  }
+
   return (
     <div className="pagina">
       <div className="pagina-cab">
@@ -32,7 +41,10 @@ export default function Usuarios() {
               <td>{u.nombre}</td><td>{u.email}</td><td><span className="badge">{u.rol}</span></td>
               <td>{u.tienda || '—'}</td>
               <td><span className={'estado ' + (u.activo ? 'completada' : 'anulada')}>{u.activo ? 'activo' : 'inactivo'}</span></td>
-              <td><button className="btn-texto" onClick={() => setModal(u)}>Editar</button></td>
+              <td className="acc-fila">
+                <button className="btn-texto" onClick={() => setModal(u)}>Editar</button>
+                <button className="btn-texto peligro" onClick={() => eliminar(u)}>Eliminar</button>
+              </td>
             </tr>
           ))}
         </tbody>
