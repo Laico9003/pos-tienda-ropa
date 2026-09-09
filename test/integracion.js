@@ -374,6 +374,28 @@ async function main() {
     r = await api('GET', '/api/ventas?tienda_id=999', { token: tokenAdmin });
     ok(r.status === 400, 'tienda_id inexistente => 400', r.status);
 
+    console.log('\n— Eliminar producto —');
+    r = await api('POST', '/api/productos', {
+      token: tokenAdmin,
+      body: { nombre: 'Producto desechable', variantes: [{ codigo_barras: 'DESECH-1', precio_venta: 5 }] },
+    });
+    const idDesech = r.datos.id;
+    r = await api('DELETE', `/api/productos/${idDesech}`, { token: tokenAdmin });
+    ok(r.status === 200 && r.datos.eliminado, 'producto sin ventas ni movimientos => se elimina', r.datos);
+    r = await api('GET', `/api/productos/${idDesech}`, { token: tokenAdmin });
+    ok(r.status === 404, 'el producto eliminado ya no existe', r.status);
+
+    // "Bufanda Norte" tiene stock inicial (movimiento) y una venta -> se desactiva
+    r = await api('GET', '/api/productos?tienda_id=2&limite=200', { token: tokenAdmin });
+    const bufanda = r.datos.productos.find((p) => p.nombre === 'Bufanda Norte');
+    r = await api('DELETE', `/api/productos/${bufanda.id}`, { token: tokenAdmin });
+    ok(r.status === 200 && r.datos.desactivado, 'producto con historial => se desactiva, no se borra', r.datos);
+    r = await api('GET', '/api/productos?tienda_id=2&limite=200&activo=true', { token: tokenAdmin });
+    ok(!r.datos.productos.some((p) => p.id === bufanda.id), 'el producto desactivado no aparece en el listado activo');
+
+    r = await api('DELETE', '/api/productos/999999', { token: tokenAdmin });
+    ok(r.status === 404, 'eliminar un producto inexistente => 404', r.status);
+
     console.log('\n— Eliminar usuario —');
     r = await api('POST', '/api/usuarios', {
       token: tokenAdmin,

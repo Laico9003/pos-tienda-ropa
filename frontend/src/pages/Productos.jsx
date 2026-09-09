@@ -101,6 +101,15 @@ function FilaProducto({ p, precios, expandido, onToggle, puedeEditar, tiendaId, 
     catch (e) { toast.error(e.message); }
   }
 
+  async function eliminar() {
+    if (!window.confirm(`¿Eliminar el producto "${p.nombre}" y todas sus variantes?\n\nSi tiene ventas registradas se desactivará en su lugar. Esta acción no se puede deshacer.`)) return;
+    try {
+      const r = await api.del(`/api/productos/${p.id}`);
+      toast.ok(r.desactivado ? r.mensaje : 'Producto eliminado');
+      onCambio();
+    } catch (e) { toast.error(e.message); }
+  }
+
   return (
     <>
       <tr className={expandido ? 'fila-abierta' : ''}>
@@ -131,6 +140,11 @@ function FilaProducto({ p, precios, expandido, onToggle, puedeEditar, tiendaId, 
               <ImagenProductoEdit producto={p} puedeEditar={puedeEditar} onCambio={onCambio} />
             </div>
             <TablaVariantes producto={p} puedeEditar={puedeEditar} tiendaId={tiendaId} onCambio={onCambio} />
+            {puedeEditar && (
+              <div className="modal-acciones" style={{ justifyContent: 'flex-start', marginTop: 10 }}>
+                <button className="btn-texto peligro" onClick={eliminar}>Eliminar producto</button>
+              </div>
+            )}
           </td>
         </tr>
       )}

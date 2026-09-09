@@ -313,4 +313,32 @@ router.put('/variantes/:varianteId', requiereRol('admin', 'bodega'), async (req,
   res.json(rows[0]);
 });
 
+// ---------------------------------------------------------------------------
+// DELETE /api/productos/:id  — elimina el producto y sus variantes/stock.
+//   Si el producto tiene ventas o movimientos de inventario no se puede borrar
+//   por integridad referencial: en ese caso se desactiva (deja de verse en el
+//   POS y en el catálogo).
+// ---------------------------------------------------------------------------
+router.delete('/:id', requiereRol('admin', 'bodega'), async (req, res) => {
+  const id = Number(req.params.id);
+  const { rows } = await consulta('SELECT id FROM productos WHERE id = $1', [id]);
+  if (!rows[0]) throw new ErrorHttp(404, 'Producto no encontrado');
+
+  try {
+    // ON DELETE CASCADE se encarga de producto_variantes y de stock.
+    await consulta('DELETE FROM productos WHERE id = $1', [id]);
+    res.json({ eliminado: true });
+  } catch (e) {
+    if (e.code === '23503') {
+      await consulta('UPDATE productos SET activo = false WHERE id = $1', [id]);
+      await consulta('UPDATE producto_variantes SET activo = false WHERE producto_id = $1', [id]);
+      return res.json({
+        desactivado: true,
+        mensaje: 'El producto tiene ventas o movimientos de inventario; se desactivó en lugar de eliminarlo.',
+      });
+    }
+    throw e;
+  }
+});
+
 export default router;
