@@ -11,6 +11,13 @@ function limpiar(valor) {
   return valor === undefined || valor === null ? null : String(valor).trim() || null;
 }
 
+// El vendedor no debe ver cuánto costó el producto (precio_compra), solo el
+// precio de venta. Se quita del lado del servidor, no solo en la pantalla.
+function sinCosto(variante) {
+  const { precio_compra, ...resto } = variante;
+  return resto;
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/productos  — listado con stock de la tienda y sus variantes
 //   ?q= texto (nombre o código de barras)   ?categoria_id=   ?activo=true|false
@@ -102,7 +109,10 @@ router.get('/', async (req, res) => {
   );
 
   const total_paginas = Math.max(1, Math.ceil(total / limite));
-  res.json({ pagina, limite, total, total_paginas, productos: rows });
+  const productos = req.usuario.rol === 'vendedor'
+    ? rows.map((p) => ({ ...p, variantes: (p.variantes || []).map(sinCosto) }))
+    : rows;
+  res.json({ pagina, limite, total, total_paginas, productos });
 });
 
 // ---------------------------------------------------------------------------
@@ -127,7 +137,7 @@ router.get('/buscar', async (req, res) => {
     [codigo, tiendaId],
   );
   if (!rows[0]) throw new ErrorHttp(404, 'No se encontró un producto con ese código');
-  res.json(rows[0]);
+  res.json(req.usuario.rol === 'vendedor' ? sinCosto(rows[0]) : rows[0]);
 });
 
 // ---------------------------------------------------------------------------
@@ -159,7 +169,8 @@ router.get('/:id', async (req, res) => {
     [req.params.id],
   );
 
-  res.json({ ...prod[0], variantes });
+  const variantesFinal = req.usuario.rol === 'vendedor' ? variantes.map(sinCosto) : variantes;
+  res.json({ ...prod[0], variantes: variantesFinal });
 });
 
 // ---------------------------------------------------------------------------

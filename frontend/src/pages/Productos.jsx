@@ -61,7 +61,7 @@ export default function Productos() {
 
       <table className="tabla">
         <thead>
-          <tr><th></th><th>Producto</th><th>Categoría</th><th>Variantes</th><th>Stock</th><th>Precio</th><th>Estado</th></tr>
+          <tr><th></th><th>Producto</th><th>Categoría</th><th>Código</th><th>Variantes</th><th>Stock</th><th>Precio</th><th>Estado</th></tr>
         </thead>
         <tbody>
           {productos.map((p) => {
@@ -75,7 +75,7 @@ export default function Productos() {
                 onCambio={cargar} />
             );
           })}
-          {productos.length === 0 && <tr><td colSpan="7" className="vacio-min">Sin productos</td></tr>}
+          {productos.length === 0 && <tr><td colSpan="8" className="vacio-min">Sin productos</td></tr>}
         </tbody>
       </table>
 
@@ -95,6 +95,7 @@ function FilaProducto({ p, precios, expandido, onToggle, puedeEditar, tiendaId, 
   const rango = precios.length
     ? (Math.min(...precios) === Math.max(...precios) ? dinero(precios[0]) : `${dinero(Math.min(...precios))}–${dinero(Math.max(...precios))}`)
     : '—';
+  const codigos = (p.variantes || []).map((v) => v.codigo_barras).filter(Boolean).join(', ') || '—';
 
   async function alternarActivo() {
     try { await api.put(`/api/productos/${p.id}`, { activo: !p.activo }); onCambio(); }
@@ -123,6 +124,7 @@ function FilaProducto({ p, precios, expandido, onToggle, puedeEditar, tiendaId, 
           </div>
         </td>
         <td>{p.categoria || '—'}</td>
+        <td className="mono codigos-col">{codigos}</td>
         <td>{(p.variantes || []).length}</td>
         <td><span className={'pill' + (p.stock_total <= 5 ? ' bajo' : '')}>{p.stock_total ?? 0}</span></td>
         <td>{rango}</td>
@@ -134,7 +136,7 @@ function FilaProducto({ p, precios, expandido, onToggle, puedeEditar, tiendaId, 
       </tr>
       {expandido && (
         <tr className="fila-detalle">
-          <td colSpan="7">
+          <td colSpan="8">
             <div className="variantes-box img-box">
               <h4>Foto del producto</h4>
               <ImagenProductoEdit producto={p} puedeEditar={puedeEditar} onCambio={onCambio} />
@@ -193,14 +195,22 @@ function TablaVariantes({ producto, puedeEditar, onCambio }) {
   return (
     <div className="variantes-box">
       <table className="tabla-sub">
-        <thead><tr><th>Talla</th><th>Color</th><th>Código barras</th><th>P. compra</th><th>P. venta</th><th>Stock</th><th></th></tr></thead>
+        <thead>
+          <tr>
+            <th>Talla</th><th>Color</th><th>Código barras</th>
+            {puedeEditar && <th>P. compra</th>}
+            <th>P. venta</th><th>Stock</th><th></th>
+          </tr>
+        </thead>
         <tbody>
           {(producto.variantes || []).map((v) => (
             <tr key={v.id}>
               <td>{v.talla || '—'}</td>
               <td>{v.color || '—'}</td>
               <td><EditableTexto valor={v.codigo_barras || ''} onGuardar={(x) => guardarVariante(v, { codigo_barras: x || null })} editable={puedeEditar} /></td>
-              <td><EditableNum valor={v.precio_compra} onGuardar={(x) => guardarVariante(v, { precio_compra: x })} editable={puedeEditar} /></td>
+              {puedeEditar && (
+                <td><EditableNum valor={v.precio_compra} onGuardar={(x) => guardarVariante(v, { precio_compra: x })} editable={puedeEditar} /></td>
+              )}
               <td><EditableNum valor={v.precio_venta} onGuardar={(x) => guardarVariante(v, { precio_venta: x })} editable={puedeEditar} /></td>
               <td><span className="pill">{v.stock ?? 0}</span></td>
               <td>

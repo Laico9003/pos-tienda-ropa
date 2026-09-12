@@ -136,13 +136,25 @@ async function main() {
     ok(r.status === 201 && r.datos.variantes.length === 2, 'producto creado con 2 variantes', r.datos);
     const varS = r.datos.variantes[0].id;
     const varM = r.datos.variantes[1].id;
+    const productoBlusaId = r.datos.id;
 
     r = await api('GET', '/api/productos/buscar?codigo=BL-S-ROJO', { token: tokenVendedor });
     ok(r.status === 200 && r.datos.stock === 10 && Number(r.datos.precio_venta) === 14.9,
       'buscar por código de barras devuelve stock y precio', r.datos);
+    ok(r.datos.precio_compra === undefined, 'vendedor: /buscar NO incluye precio_compra (costo)', r.datos);
 
     r = await api('GET', '/api/productos?q=blusa', { token: tokenVendedor });
     ok(r.status === 200 && r.datos.productos[0].stock_total === 13, 'listado con stock_total = 13', r.datos.productos?.[0]);
+    ok(r.datos.productos[0].variantes.every((v) => v.precio_compra === undefined),
+      'vendedor: listado de productos NO incluye precio_compra', r.datos.productos[0].variantes);
+
+    r = await api('GET', `/api/productos/${productoBlusaId}`, { token: tokenVendedor });
+    ok(r.datos.variantes.every((v) => v.precio_compra === undefined),
+      'vendedor: detalle de producto NO incluye precio_compra', r.datos.variantes);
+
+    r = await api('GET', `/api/productos/${productoBlusaId}`, { token: tokenAdmin });
+    ok(r.datos.variantes.every((v) => v.precio_compra !== undefined),
+      'admin: detalle de producto SÍ incluye precio_compra', r.datos.variantes);
 
     console.log('\n— Inventario —');
     r = await api('POST', '/api/inventario/entrada', {
