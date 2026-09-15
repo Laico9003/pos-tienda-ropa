@@ -148,6 +148,26 @@ async function main() {
     ok(r.datos.productos[0].variantes.every((v) => v.precio_compra === undefined),
       'vendedor: listado de productos NO incluye precio_compra', r.datos.productos[0].variantes);
 
+    // Estado activo/inactivo/todos + que la paginación reporte bien el total
+    r = await api('POST', '/api/productos', {
+      token: tokenAdmin,
+      body: { nombre: 'Producto para paginación', variantes: [{ codigo_barras: 'PAG-1', precio_venta: 1 }] },
+    });
+    ok(r.status === 201, 'segundo producto para probar la paginación', r.status);
+
+    r = await api('PUT', `/api/productos/${productoBlusaId}`, { token: tokenAdmin, body: { activo: false } });
+    ok(r.status === 200, 'admin desactiva un producto', r.status);
+    r = await api('GET', '/api/productos?activo=false', { token: tokenAdmin });
+    ok(r.datos.productos.some((p) => p.id === productoBlusaId), '?activo=false lo muestra entre los inactivos');
+    r = await api('GET', '/api/productos?activo=true', { token: tokenAdmin });
+    ok(!r.datos.productos.some((p) => p.id === productoBlusaId), '?activo=true (por defecto) ya no lo muestra');
+    r = await api('GET', '/api/productos?activo=todos', { token: tokenAdmin });
+    ok(r.datos.productos.some((p) => p.id === productoBlusaId), '?activo=todos lo muestra sin importar el estado');
+    r = await api('GET', '/api/productos?limite=1&pagina=1&activo=todos', { token: tokenAdmin });
+    ok(r.datos.total >= 2 && r.datos.total_paginas >= 2 && r.datos.productos.length === 1,
+      'la paginación reporta el total real aunque limite sea chico', r.datos);
+    await api('PUT', `/api/productos/${productoBlusaId}`, { token: tokenAdmin, body: { activo: true } });
+
     r = await api('GET', `/api/productos/${productoBlusaId}`, { token: tokenVendedor });
     ok(r.datos.variantes.every((v) => v.precio_compra === undefined),
       'vendedor: detalle de producto NO incluye precio_compra', r.datos.variantes);

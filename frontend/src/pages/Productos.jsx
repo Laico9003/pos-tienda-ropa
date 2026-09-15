@@ -15,10 +15,15 @@ export default function Productos() {
   const [categorias, setCategorias] = useState([]);
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
+  const [estado, setEstado] = useState('true'); // 'true' activos | 'false' inactivos | 'todos'
   const [tiendaId, setTiendaId] = useState('');   // '' = todas (solo admin ve el selector)
   const [abierto, setAbierto] = useState(null); // id de producto expandido
   const [modalNuevo, setModalNuevo] = useState(false);
   const [modalCategorias, setModalCategorias] = useState(false);
+  const [pagina, setPagina] = useState(1);
+  const [totalPaginas, setTotalPaginas] = useState(1);
+  const [total, setTotal] = useState(0);
+  const LIMITE = 100; // igual al máximo que acepta el backend
 
   // Tienda sobre la que operan las altas/stock: la elegida, o la propia si es "Todas".
   const tiendaOperativa = tiendaId ? Number(tiendaId) : usuario.tienda_id;
@@ -26,14 +31,18 @@ export default function Productos() {
   async function cargar() {
     try {
       const [pr, ca] = await Promise.all([
-        api.get(`/api/productos?limite=200${q ? `&q=${encodeURIComponent(q)}` : ''}${cat ? `&categoria_id=${cat}` : ''}${tiendaId ? `&tienda_id=${tiendaId}` : ''}`),
+        api.get(`/api/productos?limite=${LIMITE}&pagina=${pagina}&activo=${estado}${q ? `&q=${encodeURIComponent(q)}` : ''}${cat ? `&categoria_id=${cat}` : ''}${tiendaId ? `&tienda_id=${tiendaId}` : ''}`),
         api.get('/api/categorias?incluir_inactivas=true'),
       ]);
       setProductos(pr.productos || []);
+      setTotal(pr.total || 0);
+      setTotalPaginas(pr.total_paginas || 1);
       setCategorias(ca || []);
     } catch (e) { toast.error(e.message); }
   }
-  useEffect(() => { cargar(); }, [q, cat, tiendaId]);
+  useEffect(() => { cargar(); }, [q, cat, tiendaId, estado, pagina]);
+  // Si cambia el buscador, la categoría, la tienda o el estado, siempre se vuelve a la página 1.
+  useEffect(() => { setPagina(1); }, [q, cat, tiendaId, estado]);
 
   return (
     <div className="pagina">
@@ -57,6 +66,11 @@ export default function Productos() {
           <option value="">Todas las categorías</option>
           {categorias.filter((c) => c.activo).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
         </select>
+        <select value={estado} onChange={(e) => setEstado(e.target.value)}>
+          <option value="true">Activos</option>
+          <option value="false">Inactivos</option>
+          <option value="todos">Todos</option>
+        </select>
       </div>
 
       <table className="tabla">
@@ -79,6 +93,14 @@ export default function Productos() {
         </tbody>
       </table>
 
+      {totalPaginas > 1 && (
+        <div className="paginador">
+          <button className="btn-secundario chico" disabled={pagina <= 1} onClick={() => setPagina((p) => p - 1)}>‹ Anterior</button>
+          <span className="nota-min">Página {pagina} de {totalPaginas} · {total} productos en total</span>
+          <button className="btn-secundario chico" disabled={pagina >= totalPaginas} onClick={() => setPagina((p) => p + 1)}>Siguiente ›</button>
+        </div>
+      )}
+
       {modalNuevo && (
         <ModalNuevoProducto categorias={categorias.filter((c) => c.activo)} tiendaId={tiendaOperativa}
           onCerrar={() => setModalNuevo(false)} onCreado={() => { setModalNuevo(false); cargar(); }} />
@@ -98,6 +120,7 @@ function FilaProducto({ p, precios, expandido, onToggle, puedeEditar, tiendaId, 
   const codigos = (p.variantes || []).map((v) => v.codigo_barras).filter(Boolean).join(', ') || '—';
 
   async function alternarActivo() {
+    if (p.activo && !window.confirm(`"${p.nombre}" pasará a Inactivo y dejará de aparecer en la lista de Productos y en el Punto de Venta.\n\n¿Continuar?`)) return;
     try { await api.put(`/api/productos/${p.id}`, { activo: !p.activo }); onCambio(); }
     catch (e) { toast.error(e.message); }
   }

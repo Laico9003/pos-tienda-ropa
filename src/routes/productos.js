@@ -61,7 +61,7 @@ router.get('/', async (req, res) => {
   if (req.query.activo === 'true' || req.query.activo === 'false') {
     params.push(req.query.activo === 'true');
     filtros.push(`p.activo = $${params.length}`);
-  } else {
+  } else if (req.query.activo !== 'todos') {
     filtros.push('p.activo = true');
   }
 
