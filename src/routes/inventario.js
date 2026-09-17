@@ -106,14 +106,18 @@ router.post('/ajuste', requiereRol('admin', 'bodega'), async (req, res) => {
 // ---------------------------------------------------------------------------
 router.get('/stock', async (req, res) => {
   const tiendaId = await tiendaSeleccionada(req);
+  // JOIN (no LEFT JOIN): solo variantes con una fila de stock en ESTA tienda, es
+  // decir, mercadería que de verdad pertenece a ella. Antes se listaba TODO el
+  // catálogo (compartido entre tiendas) con 0 relleno para lo que era de la otra
+  // tienda, lo que se veía como "todo mezclado" al crecer el catálogo.
   const { rows } = await consulta(
     `SELECT v.id AS variante_id, p.nombre AS producto, v.talla, v.color,
             v.codigo_barras, v.precio_venta,
-            COALESCE(s.cantidad, 0)::int AS stock
-       FROM producto_variantes v
-       JOIN productos p  ON p.id = v.producto_id
-       LEFT JOIN stock s ON s.variante_id = v.id AND s.tienda_id = $1
-      WHERE v.activo = true AND p.activo = true
+            s.cantidad::int AS stock
+       FROM stock s
+       JOIN producto_variantes v ON v.id = s.variante_id
+       JOIN productos p          ON p.id = v.producto_id
+      WHERE s.tienda_id = $1 AND v.activo = true AND p.activo = true
       ORDER BY p.nombre, v.talla, v.color`,
     [tiendaId],
   );
@@ -128,12 +132,12 @@ router.get('/stock-bajo', async (req, res) => {
   const umbral = Number(req.query.umbral) || Number(process.env.STOCK_BAJO_UMBRAL) || 5;
   const { rows } = await consulta(
     `SELECT v.id AS variante_id, p.nombre AS producto, v.talla, v.color, v.codigo_barras,
-            COALESCE(s.cantidad, 0)::int AS stock
-       FROM producto_variantes v
-       JOIN productos p  ON p.id = v.producto_id
-       LEFT JOIN stock s ON s.variante_id = v.id AND s.tienda_id = $1
-      WHERE v.activo = true AND p.activo = true
-        AND COALESCE(s.cantidad, 0) <= $2
+            s.cantidad::int AS stock
+       FROM stock s
+       JOIN producto_variantes v ON v.id = s.variante_id
+       JOIN productos p          ON p.id = v.producto_id
+      WHERE s.tienda_id = $1 AND v.activo = true AND p.activo = true
+        AND s.cantidad <= $2
       ORDER BY stock ASC, p.nombre`,
     [tiendaId, umbral],
   );

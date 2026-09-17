@@ -385,8 +385,11 @@ async function main() {
     const t2 = r.datos.find((x) => x.codigo_barras === 'BUF-N2');
     ok(t2 && t2.stock === 7, 'Inventario Tienda 2: stock de la bufanda = 7', t2);
     r = await api('GET', '/api/inventario/stock?tienda_id=1', { token: tokenAdmin });
-    const t1 = r.datos.find((x) => x.codigo_barras === 'BUF-N2');
-    ok(!t1 || t1.stock === 0, 'Inventario Tienda 1: la bufanda no tiene stock', t1);
+    ok(!r.datos.some((x) => x.codigo_barras === 'BUF-N2'),
+      'Inventario Tienda 1: NO aparece la bufanda (nunca tuvo stock ahí, no se mezcla)', r.datos.length);
+    ok(r.datos.some((x) => x.codigo_barras === 'GORRA-1'),
+      'Inventario Tienda 1: sí aparece la gorra, agotada (0) pero con historial de stock ahí',
+      r.datos.find((x) => x.codigo_barras === 'GORRA-1'));
 
     // Venta en la Tienda 2 (el admin puede indicar la tienda en el cuerpo)
     const rv = await api('GET', '/api/productos/buscar?codigo=BUF-N2&tienda_id=2', { token: tokenAdmin });
