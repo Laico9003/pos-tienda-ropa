@@ -115,6 +115,13 @@ export function comprobanteCajaHTML(negocio = {}, caja = {}, formato = '80mm') {
     .map((d) => `<tr><td>$ ${d}</td><td class="r">${dg[grupo][d]}</td><td class="r">${m(Number(d) * dg[grupo][d])}</td></tr>`)
     .join('') || '<tr><td colspan="3" class="c">—</td></tr>';
 
+  const movs = Array.isArray(caja.movimientos) ? caja.movimientos : [];
+  const filasMovs = movs.map((mv) => `<tr>
+      <td>${mv.tipo === 'retiro' ? 'Retiro' : 'Ingreso'}</td>
+      <td>${esc(mv.motivo || '—')}</td>
+      <td class="r">${mv.tipo === 'retiro' ? '- ' : ''}${m(mv.monto)}</td>
+    </tr>`).join('');
+
   return `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <title>Cierre de caja #${caja.numero ?? ''}</title>
 <style>
@@ -150,6 +157,7 @@ export function comprobanteCajaHTML(negocio = {}, caja = {}, formato = '80mm') {
     <tr class="b"><td>Efectivo contado</td><td class="r">${m(caja.efectivo_contado)}</td></tr>
     <tr class="b"><td>Diferencia</td><td class="r">${m(dif)}</td></tr>
   </table>
+  ${filasMovs ? `<hr><div class="b">Retiros e ingresos de esta caja</div><table>${filasMovs}</table>` : ''}
   <hr>
   <div class="b">Desglose del efectivo contado</div>
   <div class="cols">

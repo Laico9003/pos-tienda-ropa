@@ -75,7 +75,7 @@ function CajaActual() {
       const r = await api.post(`/api/cajas/${estado.caja.id}/cerrar`, {
         desglose_cierre: desgCierre, observacion: obs || undefined,
       });
-      setReciboCerrada({ ...r.caja, tienda: estado.caja.tienda || '', responsable: estado.caja.responsable });
+      setReciboCerrada({ ...r.caja, tienda: estado.caja.tienda || '', responsable: estado.caja.responsable, movimientos: estado.movimientos });
       setDesgCierre(null); setObs('');
       toast.ok('Caja cerrada');
       cargar();
@@ -298,6 +298,23 @@ function HistorialCajas() {
                 <span>Diferencia</span><span>{dinero(detalle.diferencia)}</span>
               </div>
             </div>
+            {detalle.movimientos?.length > 0 && (
+              <>
+                <h4>Retiros e ingresos de esta caja</h4>
+                <table className="tabla-sub">
+                  <tbody>
+                    {detalle.movimientos.map((m) => (
+                      <tr key={m.id}>
+                        <td>{m.tipo === 'retiro' ? '➖ Retiro' : '➕ Ingreso'}</td>
+                        <td>{m.motivo || '—'}</td>
+                        <td className="nota-min">{fecha(m.creado_en)} · {m.usuario || '—'}</td>
+                        <td className="r"><strong>{m.tipo === 'retiro' ? '- ' : ''}{dinero(m.monto)}</strong></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
             {detalle.observacion && <p className="nota-min">Obs.: {detalle.observacion}</p>}
             <div className="modal-acciones">
               {detalle.estado === 'cerrada' && (
