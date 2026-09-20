@@ -80,14 +80,16 @@ router.get('/dashboard', async (req, res) => {
           ORDER BY g.mes`,
         [tiendaId],
       ),
-      // Stock bajo (solo mercadería que pertenece a esta tienda: requiere fila en stock)
+      // Stock bajo: mercadería de esta tienda, o variantes nuevas sin asignar
+      // a ninguna tienda todavía (ver nota en inventario.js /stock)
       consulta(
         `SELECT COUNT(*)::int AS cantidad
-           FROM stock s
-           JOIN producto_variantes v ON v.id = s.variante_id
-           JOIN productos p          ON p.id = v.producto_id
-          WHERE s.tienda_id = $1 AND v.activo AND p.activo
-            AND s.cantidad <= $2`,
+           FROM producto_variantes v
+           JOIN productos p  ON p.id = v.producto_id
+           LEFT JOIN stock s ON s.variante_id = v.id AND s.tienda_id = $1
+          WHERE v.activo AND p.activo
+            AND (s.id IS NOT NULL OR NOT EXISTS (SELECT 1 FROM stock s2 WHERE s2.variante_id = v.id))
+            AND COALESCE(s.cantidad, 0) <= $2`,
         [tiendaId, umbralBajo],
       ),
       // Resumen mes actual y mes anterior (monto y # ventas)

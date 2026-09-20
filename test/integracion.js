@@ -370,6 +370,7 @@ async function main() {
         stock_inicial: [{ tienda_id: 2, cantidad: 7 }] }] },
     });
     ok(r.status === 201, 'admin crea producto con stock en Tienda 2', r.status);
+    const bufandaProductoId = r.datos.id;
 
     r = await api('GET', '/api/productos?tienda_id=1&limite=200', { token: tokenAdmin });
     const nombresT1 = (r.datos.productos || []).map((p) => p.nombre);
@@ -390,6 +391,33 @@ async function main() {
     ok(r.datos.some((x) => x.codigo_barras === 'GORRA-1'),
       'Inventario Tienda 1: sí aparece la gorra, agotada (0) pero con historial de stock ahí',
       r.datos.find((x) => x.codigo_barras === 'GORRA-1'));
+
+    // Variante nueva agregada desde Productos, SIN stock inicial en ninguna tienda:
+    // debe verse en el inventario de AMBAS tiendas hasta que alguna la "reclame".
+    r = await api('POST', `/api/productos/${bufandaProductoId}/variantes`, {
+      token: tokenAdmin,
+      body: { talla: 'Standard', color: 'Marrón', codigo_barras: 'BUF-N2-MARRON', precio_venta: 12 },
+    });
+    ok(r.status === 201, 'admin agrega una variante nueva sin stock inicial', r.status);
+
+    r = await api('GET', '/api/inventario/stock?tienda_id=1', { token: tokenAdmin });
+    ok(r.datos.some((x) => x.codigo_barras === 'BUF-N2-MARRON'),
+      'Inventario Tienda 1: SÍ aparece la variante nueva sin reclamar (para poder ajustarle stock)', r.datos.length);
+    r = await api('GET', '/api/inventario/stock?tienda_id=2', { token: tokenAdmin });
+    const marronT2 = r.datos.find((x) => x.codigo_barras === 'BUF-N2-MARRON');
+    ok(marronT2 && marronT2.stock === 0,
+      'Inventario Tienda 2: también aparece esa misma variante nueva (todavía sin reclamar)', marronT2);
+
+    // Se le da entrada de stock en Tienda 2 -> deja de estar "libre" y ya solo es de Tienda 2
+    r = await api('POST', '/api/inventario/entrada', {
+      token: tokenAdmin,
+      body: { tienda_id: 2, items: [{ variante_id: marronT2.variante_id, cantidad: 3 }] },
+    });
+    ok(r.status === 201, 'ingreso de mercadería para la variante nueva, en Tienda 2', r.status);
+
+    r = await api('GET', '/api/inventario/stock?tienda_id=1', { token: tokenAdmin });
+    ok(!r.datos.some((x) => x.codigo_barras === 'BUF-N2-MARRON'),
+      'Inventario Tienda 1: YA NO aparece esa variante una vez reclamada por Tienda 2', r.datos.length);
 
     // Venta en la Tienda 2 (el admin puede indicar la tienda en el cuerpo)
     const rv = await api('GET', '/api/productos/buscar?codigo=BUF-N2&tienda_id=2', { token: tokenAdmin });
