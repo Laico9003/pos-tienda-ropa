@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { consulta, conTransaccion } from '../db/pool.js';
 import { autenticar, requiereRol, tiendaObjetivo, tiendaSeleccionada } from '../middleware/auth.js';
 import { ErrorHttp } from '../middleware/errores.js';
-import { requerido, aNumero, aEntero } from '../utils/validacion.js';
+import { requerido, aNumero, aEntero, condicionesFechaEcuador } from '../utils/validacion.js';
 
 const router = Router();
 router.use(autenticar);
@@ -164,14 +164,7 @@ router.get('/movimientos', async (req, res) => {
     params.push(String(req.query.tipo));
     filtros.push(`m.tipo = $${params.length}`);
   }
-  if (req.query.desde) {
-    params.push(req.query.desde);
-    filtros.push(`m.creado_en >= $${params.length}`);
-  }
-  if (req.query.hasta) {
-    params.push(req.query.hasta);
-    filtros.push(`m.creado_en <= $${params.length}`);
-  }
+  filtros.push(...condicionesFechaEcuador(params, 'm.creado_en', req.query));
   const limite = Math.min(500, Math.max(1, Number(req.query.limite) || 100));
   params.push(limite);
 

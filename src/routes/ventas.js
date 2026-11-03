@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { consulta, conTransaccion } from '../db/pool.js';
 import { autenticar, requiereRol, tiendaObjetivo, tiendaSeleccionada } from '../middleware/auth.js';
 import { ErrorHttp } from '../middleware/errores.js';
-import { aNumero, aEntero, redondear2 } from '../utils/validacion.js';
+import { aNumero, aEntero, redondear2, condicionesFechaEcuador } from '../utils/validacion.js';
 import { upsertCliente } from './clientes.js';
 
 const router = Router();
@@ -283,39 +283,42 @@ router.get('/', requiereRol('admin'), async (req, res) => {
     params.push(String(req.query.estado));
     filtros.push(`v.estado = $${params.length}`);
   }
-  if (req.query.desde) {
-    params.push(req.query.desde);
-    filtros.push(`v.creado_en >= $${params.length}`);
-  }
-  if (req.query.hasta) {
-    params.push(req.query.hasta);
-    filtros.push(`v.creado_en <= $${params.length}`);
-  }
+  filtros.push(...condicionesFechaEcuador(params, 'v.creado_en', req.query));
 
   const where = filtros.length ? `WHERE ${filtros.join(' AND ')}` : '';
   const limite = Math.min(200, Math.max(1, Number(req.query.limite) || 50));
   const pagina = Math.max(1, Number(req.query.pagina) || 1);
-  params.push(limite, (pagina - 1) * limite);
+  const paramsLista = [...params, limite, (pagina - 1) * limite];
 
-  const { rows } = await consulta(
-    `SELECT v.id, v.creado_en, v.tienda_id, t.nombre AS tienda, u.nombre AS vendedor,
-            v.cliente_nombre, v.subtotal, v.descuento_total, v.total,
-            v.total_pagado, v.cambio, v.estado, v.estado_sri,
-            COALESCE(
-              json_agg(json_build_object('metodo', pg.metodo, 'monto', pg.monto))
-                FILTER (WHERE pg.id IS NOT NULL), '[]'
-            ) AS pagos
-       FROM ventas v
-       JOIN tiendas t   ON t.id = v.tienda_id
-       JOIN usuarios u  ON u.id = v.usuario_id
-       LEFT JOIN pagos pg ON pg.venta_id = v.id
-       ${where}
-      GROUP BY v.id, t.nombre, u.nombre
-      ORDER BY v.creado_en DESC
-      LIMIT $${params.length - 1} OFFSET $${params.length}`,
-    params,
-  );
-  res.json({ pagina, limite, ventas: rows });
+  const [{ rows }, { rows: totalRows }] = await Promise.all([
+    consulta(
+      `SELECT v.id, v.creado_en, v.tienda_id, t.nombre AS tienda, u.nombre AS vendedor,
+              v.cliente_nombre, v.subtotal, v.descuento_total, v.total,
+              v.total_pagado, v.cambio, v.estado, v.estado_sri,
+              COALESCE(
+                json_agg(json_build_object('metodo', pg.metodo, 'monto', pg.monto))
+                  FILTER (WHERE pg.id IS NOT NULL), '[]'
+              ) AS pagos
+         FROM ventas v
+         JOIN tiendas t   ON t.id = v.tienda_id
+         JOIN usuarios u  ON u.id = v.usuario_id
+         LEFT JOIN pagos pg ON pg.venta_id = v.id
+         ${where}
+        GROUP BY v.id, t.nombre, u.nombre
+        ORDER BY v.creado_en DESC
+        LIMIT $${paramsLista.length - 1} OFFSET $${paramsLista.length}`,
+      paramsLista,
+    ),
+    // Conteo y total sobre TODO el rango filtrado (no solo la página cargada).
+    consulta(
+      `SELECT COUNT(*)::int AS total_ventas,
+              COALESCE(SUM(v.total) FILTER (WHERE v.estado = 'completada'), 0)::float8 AS total_monto
+         FROM ventas v
+         ${where}`,
+      params,
+    ),
+  ]);
+  res.json({ pagina, limite, total_ventas: totalRows[0].total_ventas, total_monto: totalRows[0].total_monto, ventas: rows });
 });
 
 // ---------------------------------------------------------------------------

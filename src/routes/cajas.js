@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { consulta, conTransaccion } from '../db/pool.js';
 import { autenticar, requiereRol, tiendaObjetivo, tiendaSeleccionada } from '../middleware/auth.js';
 import { ErrorHttp } from '../middleware/errores.js';
-import { aNumero, redondear2 } from '../utils/validacion.js';
+import { aNumero, redondear2, condicionesFechaEcuador } from '../utils/validacion.js';
 
 const router = Router();
 router.use(autenticar);
@@ -176,8 +176,7 @@ router.get('/', requiereRol('admin'), async (req, res) => {
     params.push(await tiendaSeleccionada(req));
     filtros.push(`c.tienda_id = $${params.length}`);
   }
-  if (req.query.desde) { params.push(req.query.desde); filtros.push(`c.abierta_en >= $${params.length}`); }
-  if (req.query.hasta) { params.push(req.query.hasta); filtros.push(`c.abierta_en <= $${params.length}`); }
+  filtros.push(...condicionesFechaEcuador(params, 'c.abierta_en', req.query));
   const where = filtros.length ? `WHERE ${filtros.join(' AND ')}` : '';
   const limite = Math.min(200, Math.max(1, Number(req.query.limite) || 60));
 

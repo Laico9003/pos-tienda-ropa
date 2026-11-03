@@ -29,6 +29,8 @@ function ListaVentas() {
   const { esAdmin } = useAuth();
   const toast = useToast();
   const [ventas, setVentas] = useState([]);
+  const [totalVentas, setTotalVentas] = useState(0);
+  const [totalMonto, setTotalMonto] = useState(0);
   const [desde, setDesde] = useState(haceISO(7));
   const [hasta, setHasta] = useState(hoyISO());
   const [tiendaId, setTiendaId] = useState('');   // '' = todas
@@ -38,8 +40,10 @@ function ListaVentas() {
 
   async function cargar() {
     try {
-      const r = await api.get(`/api/ventas?desde=${desde}&hasta=${hasta}T23:59:59&limite=200${tiendaId ? `&tienda_id=${tiendaId}` : ''}`);
+      const r = await api.get(`/api/ventas?desde=${desde}&hasta=${hasta}&limite=200${tiendaId ? `&tienda_id=${tiendaId}` : ''}`);
       setVentas(r.ventas || []);
+      setTotalVentas(r.total_ventas || 0);
+      setTotalMonto(r.total_monto || 0);
     } catch (e) { toast.error(e.message); }
   }
   useEffect(() => { cargar(); }, [desde, hasta, tiendaId]);
@@ -83,8 +87,6 @@ function ListaVentas() {
     } catch (e) { toast.error(e.message); }
   }
 
-  const totalPeriodo = ventas.filter((v) => v.estado === 'completada').reduce((s, v) => s + Number(v.total), 0);
-
   return (
     <>
       {esAdmin && (
@@ -95,7 +97,7 @@ function ListaVentas() {
       <div className="filtros">
         <label>Desde <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></label>
         <label>Hasta <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></label>
-        <span className="total-periodo">{ventas.length} ventas · {dinero(totalPeriodo)}</span>
+        <span className="total-periodo">{totalVentas} ventas · {dinero(totalMonto)}</span>
       </div>
 
       <table className="tabla">
@@ -228,7 +230,7 @@ function Transferencias() {
 
   async function cargar() {
     try {
-      const q = new URLSearchParams({ metodo: 'transferencia', desde, hasta: `${hasta}T23:59:59` });
+      const q = new URLSearchParams({ metodo: 'transferencia', desde, hasta });
       if (filtro) q.set('verificado', filtro);
       if (banco) q.set('banco', banco);
       if (tiendaId) q.set('tienda_id', tiendaId);

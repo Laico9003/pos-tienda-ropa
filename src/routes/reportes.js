@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { consulta } from '../db/pool.js';
 import { autenticar, requiereRol, tiendaSeleccionada } from '../middleware/auth.js';
-import { rangoPorDefecto } from '../utils/validacion.js';
+import { rangoPorDefecto, ZONA_ECUADOR } from '../utils/validacion.js';
 
 const router = Router();
 router.use(autenticar);
@@ -23,6 +23,9 @@ function rango(req) {
 router.get('/dashboard', async (req, res) => {
   const tiendaId = await tiendaSeleccionada(req);
   const umbralBajo = Number(process.env.STOCK_BAJO_UMBRAL) || 5;
+  // "Hoy" y "mes actual" en hora de Ecuador (el servidor corre en UTC).
+  const hoyEc = new Date().toLocaleDateString('en-CA', { timeZone: ZONA_ECUADOR });
+  const mesActualEc = `${hoyEc.slice(0, 7)}-01`;
 
   const [hoy, porMetodo, topHistorico, serieMeses, stockBajo, resumenMeses, costoMes, ultimasVentas, totales] =
     await Promise.all([
@@ -34,11 +37,14 @@ router.get('/dashboard', async (req, res) => {
                 COALESCE((SELECT SUM(vi.cantidad) FROM venta_items vi
                           JOIN ventas v2 ON v2.id = vi.venta_id
                          WHERE v2.estado = 'completada' AND v2.tienda_id = $1
-                           AND v2.creado_en::date = CURRENT_DATE), 0)::int AS unidades
+                           AND v2.creado_en >= ($2::date AT TIME ZONE '${ZONA_ECUADOR}')
+                           AND v2.creado_en <  (($2::date + INTERVAL '1 day') AT TIME ZONE '${ZONA_ECUADOR}')
+                         ), 0)::int AS unidades
            FROM ventas v
           WHERE v.estado = 'completada' AND v.tienda_id = $1
-            AND v.creado_en::date = CURRENT_DATE`,
-        [tiendaId],
+            AND v.creado_en >= ($2::date AT TIME ZONE '${ZONA_ECUADOR}')
+            AND v.creado_en <  (($2::date + INTERVAL '1 day') AT TIME ZONE '${ZONA_ECUADOR}')`,
+        [tiendaId, hoyEc],
       ),
       // Pagos de hoy por método
       consulta(
@@ -48,9 +54,10 @@ router.get('/dashboard', async (req, res) => {
            FROM pagos pg
            JOIN ventas v ON v.id = pg.venta_id
           WHERE v.estado = 'completada' AND v.tienda_id = $1
-            AND v.creado_en::date = CURRENT_DATE
+            AND v.creado_en >= ($2::date AT TIME ZONE '${ZONA_ECUADOR}')
+            AND v.creado_en <  (($2::date + INTERVAL '1 day') AT TIME ZONE '${ZONA_ECUADOR}')
           GROUP BY pg.metodo`,
-        [tiendaId],
+        [tiendaId, hoyEc],
       ),
       // Top 5 productos histórico (por unidades)
       consulta(
@@ -65,20 +72,20 @@ router.get('/dashboard', async (req, res) => {
           LIMIT 5`,
         [tiendaId],
       ),
-      // Serie: ventas y ganancia bruta, últimos 6 meses
+      // Serie: ventas y ganancia bruta, últimos 6 meses (meses en hora Ecuador)
       consulta(
-        `SELECT g.mes,
+        `SELECT g.mes::date AS mes,
                 COALESCE(SUM(vi.total_linea), 0)::float8 AS ventas,
                 COALESCE(SUM(vi.total_linea - vi.cantidad * pv.precio_compra), 0)::float8 AS ganancia
-           FROM generate_series(date_trunc('month', CURRENT_DATE) - INTERVAL '5 months',
-                                date_trunc('month', CURRENT_DATE), INTERVAL '1 month') g(mes)
-           LEFT JOIN ventas v ON date_trunc('month', v.creado_en) = g.mes
+           FROM generate_series($2::date - INTERVAL '5 months', $2::date, INTERVAL '1 month') g(mes)
+           LEFT JOIN ventas v ON v.creado_en >= (g.mes AT TIME ZONE '${ZONA_ECUADOR}')
+                 AND v.creado_en < ((g.mes + INTERVAL '1 month') AT TIME ZONE '${ZONA_ECUADOR}')
                  AND v.estado = 'completada' AND v.tienda_id = $1
            LEFT JOIN venta_items vi ON vi.venta_id = v.id
            LEFT JOIN producto_variantes pv ON pv.id = vi.variante_id
           GROUP BY g.mes
           ORDER BY g.mes`,
-        [tiendaId],
+        [tiendaId, mesActualEc],
       ),
       // Stock bajo: mercadería de esta tienda, o variantes nuevas sin asignar
       // a ninguna tienda todavía (ver nota en inventario.js /stock)
@@ -94,14 +101,14 @@ router.get('/dashboard', async (req, res) => {
       ),
       // Resumen mes actual y mes anterior (monto y # ventas)
       consulta(
-        `SELECT (v.creado_en >= date_trunc('month', CURRENT_DATE)) AS es_mes_actual,
+        `SELECT (v.creado_en >= ($2::date AT TIME ZONE '${ZONA_ECUADOR}')) AS es_mes_actual,
                 COUNT(*)::int AS ventas,
                 COALESCE(SUM(v.total), 0)::float8 AS monto
            FROM ventas v
           WHERE v.estado = 'completada' AND v.tienda_id = $1
-            AND v.creado_en >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
+            AND v.creado_en >= (($2::date - INTERVAL '1 month') AT TIME ZONE '${ZONA_ECUADOR}')
           GROUP BY 1`,
-        [tiendaId],
+        [tiendaId, mesActualEc],
       ),
       // Costo y unidades del mes actual (para ganancia y margen)
       consulta(
@@ -111,8 +118,8 @@ router.get('/dashboard', async (req, res) => {
            JOIN venta_items vi ON vi.venta_id = v.id
            JOIN producto_variantes pv ON pv.id = vi.variante_id
           WHERE v.estado = 'completada' AND v.tienda_id = $1
-            AND v.creado_en >= date_trunc('month', CURRENT_DATE)`,
-        [tiendaId],
+            AND v.creado_en >= ($2::date AT TIME ZONE '${ZONA_ECUADOR}')`,
+        [tiendaId, mesActualEc],
       ),
       // Últimas ventas
       consulta(
@@ -175,7 +182,8 @@ router.get('/ventas-por-dia', async (req, res) => {
             COALESCE(SUM(v.total), 0)::float8 AS monto
        FROM generate_series($2::date, $3::date, INTERVAL '1 day') d
        LEFT JOIN ventas v
-              ON v.creado_en::date = d::date
+              ON v.creado_en >= (d::date AT TIME ZONE '${ZONA_ECUADOR}')
+             AND v.creado_en < ((d::date + INTERVAL '1 day') AT TIME ZONE '${ZONA_ECUADOR}')
              AND v.estado = 'completada'
              AND v.tienda_id = $1
       GROUP BY d
@@ -200,7 +208,8 @@ router.get('/top-productos', async (req, res) => {
        JOIN ventas v ON v.id = vi.venta_id
       WHERE v.estado = 'completada'
         AND v.tienda_id = $1
-        AND v.creado_en::date BETWEEN $2::date AND $3::date
+        AND v.creado_en >= ($2::date AT TIME ZONE '${ZONA_ECUADOR}')
+        AND v.creado_en < (($3::date + INTERVAL '1 day') AT TIME ZONE '${ZONA_ECUADOR}')
       GROUP BY vi.descripcion
       ORDER BY unidades DESC, monto DESC
       LIMIT $4`,
@@ -223,7 +232,8 @@ router.get('/ventas-por-metodo', async (req, res) => {
        JOIN ventas v ON v.id = pg.venta_id
       WHERE v.estado = 'completada'
         AND v.tienda_id = $1
-        AND v.creado_en::date BETWEEN $2::date AND $3::date
+        AND v.creado_en >= ($2::date AT TIME ZONE '${ZONA_ECUADOR}')
+        AND v.creado_en < (($3::date + INTERVAL '1 day') AT TIME ZONE '${ZONA_ECUADOR}')
       GROUP BY pg.metodo`,
     [tiendaId, desde, hasta],
   );
@@ -237,7 +247,11 @@ router.get('/ventas-por-metodo', async (req, res) => {
 router.get('/pagos', async (req, res) => {
   const { desde, hasta } = rango(req);
   const params = [desde, hasta];
-  const filtros = ["v.estado = 'completada'", 'v.creado_en::date BETWEEN $1::date AND $2::date'];
+  const filtros = [
+    "v.estado = 'completada'",
+    `v.creado_en >= ($1::date AT TIME ZONE '${ZONA_ECUADOR}')`,
+    `v.creado_en < (($2::date + INTERVAL '1 day') AT TIME ZONE '${ZONA_ECUADOR}')`,
+  ];
   // Sin ?tienda_id → todas las tiendas; con ?tienda_id → esa (validada).
   if (req.query.tienda_id) {
     params.push(await tiendaSeleccionada(req));

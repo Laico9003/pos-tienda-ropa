@@ -40,3 +40,25 @@ export function rangoPorDefecto(dias = 30) {
     hasta: hoy.toISOString().slice(0, 10),
   };
 }
+
+/** Zona horaria de la tienda (Ecuador), usada para que los filtros por fecha
+ *  tomen días completos en hora local y no en UTC (servidor). */
+export const ZONA_ECUADOR = 'America/Guayaquil';
+
+/**
+ * Agrega a `params` ?desde/?hasta ('YYYY-MM-DD') como un rango de días
+ * completos en hora de Ecuador sobre una columna timestamptz, y devuelve
+ * los fragmentos SQL a sumar al WHERE (array, puede quedar vacío).
+ */
+export function condicionesFechaEcuador(params, columna, { desde, hasta }) {
+  const condiciones = [];
+  if (desde) {
+    params.push(desde);
+    condiciones.push(`${columna} >= ($${params.length}::date AT TIME ZONE '${ZONA_ECUADOR}')`);
+  }
+  if (hasta) {
+    params.push(hasta);
+    condiciones.push(`${columna} < (($${params.length}::date + INTERVAL '1 day') AT TIME ZONE '${ZONA_ECUADOR}')`);
+  }
+  return condiciones;
+}

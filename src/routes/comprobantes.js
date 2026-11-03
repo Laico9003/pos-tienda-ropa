@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { consulta } from '../db/pool.js';
 import { autenticar, requiereRol, tiendaSeleccionada } from '../middleware/auth.js';
 import { ErrorHttp } from '../middleware/errores.js';
+import { condicionesFechaEcuador } from '../utils/validacion.js';
 import { procesarComprobante } from '../sri/emisor.js';
 import { construirFactura } from '../sri/construirFactura.js';
 import { generarRidePDF } from '../sri/ride.js';
@@ -21,8 +22,7 @@ router.get('/', async (req, res) => {
     filtros.push(`v.tienda_id = $${params.length}`);
   }
   if (req.query.estado) { params.push(String(req.query.estado)); filtros.push(`c.estado = $${params.length}`); }
-  if (req.query.desde) { params.push(req.query.desde); filtros.push(`c.creado_en >= $${params.length}`); }
-  if (req.query.hasta) { params.push(req.query.hasta); filtros.push(`c.creado_en <= $${params.length}`); }
+  filtros.push(...condicionesFechaEcuador(params, 'c.creado_en', req.query));
   const where = filtros.length ? `WHERE ${filtros.join(' AND ')}` : '';
   const limite = Math.min(200, Math.max(1, Number(req.query.limite) || 50));
   const pagina = Math.max(1, Number(req.query.pagina) || 1);
