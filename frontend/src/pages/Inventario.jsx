@@ -190,6 +190,8 @@ function Kardex({ tiendaId }) {
   const [tipo, setTipo] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [busquedaDebounced, setBusquedaDebounced] = useState('');
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
 
   useEffect(() => {
     const t = setTimeout(() => setBusquedaDebounced(busqueda.trim()), 350);
@@ -198,9 +200,10 @@ function Kardex({ tiendaId }) {
 
   useEffect(() => {
     const qBusqueda = busquedaDebounced ? `&busqueda=${encodeURIComponent(busquedaDebounced)}` : '';
-    api.get(`/api/inventario/movimientos?limite=200${tipo ? `&tipo=${tipo}` : ''}${qBusqueda}${qTienda(tiendaId)}`)
+    const qFechas = `${desde ? `&desde=${desde}` : ''}${hasta ? `&hasta=${hasta}` : ''}`;
+    api.get(`/api/inventario/movimientos?limite=500${tipo ? `&tipo=${tipo}` : ''}${qBusqueda}${qFechas}${qTienda(tiendaId)}`)
       .then(setRows).catch((e) => toast.error(e.message));
-  }, [tipo, busquedaDebounced, tiendaId]);
+  }, [tipo, busquedaDebounced, desde, hasta, tiendaId]);
 
   const etiquetaTipo = {
     entrada: '📥 Entrada', venta: '🛒 Venta', ajuste: '⚙️ Ajuste',
@@ -222,6 +225,8 @@ function Kardex({ tiendaId }) {
           <option value="ajuste">Ajustes</option>
           <option value="anulacion_venta">Anulaciones</option>
         </select>
+        <label>Desde <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></label>
+        <label>Hasta <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></label>
       </div>
       <table className="tabla">
         <thead><tr><th>Fecha</th><th>Tipo</th><th>Producto</th><th>Cant.</th><th>Antes→Después</th><th>Referencia</th><th>Usuario</th></tr></thead>
