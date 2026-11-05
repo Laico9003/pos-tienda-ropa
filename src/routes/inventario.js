@@ -164,6 +164,10 @@ router.get('/movimientos', async (req, res) => {
     params.push(String(req.query.tipo));
     filtros.push(`m.tipo = $${params.length}`);
   }
+  if (req.query.busqueda) {
+    params.push(`%${String(req.query.busqueda).trim()}%`);
+    filtros.push(`p.nombre ILIKE $${params.length}`);
+  }
   filtros.push(...condicionesFechaEcuador(params, 'm.creado_en', req.query));
   const limite = Math.min(500, Math.max(1, Number(req.query.limite) || 100));
   params.push(limite);

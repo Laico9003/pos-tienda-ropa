@@ -188,11 +188,19 @@ function Kardex({ tiendaId }) {
   const toast = useToast();
   const [rows, setRows] = useState([]);
   const [tipo, setTipo] = useState('');
+  const [busqueda, setBusqueda] = useState('');
+  const [busquedaDebounced, setBusquedaDebounced] = useState('');
 
   useEffect(() => {
-    api.get(`/api/inventario/movimientos?limite=200${tipo ? `&tipo=${tipo}` : ''}${qTienda(tiendaId)}`)
+    const t = setTimeout(() => setBusquedaDebounced(busqueda.trim()), 350);
+    return () => clearTimeout(t);
+  }, [busqueda]);
+
+  useEffect(() => {
+    const qBusqueda = busquedaDebounced ? `&busqueda=${encodeURIComponent(busquedaDebounced)}` : '';
+    api.get(`/api/inventario/movimientos?limite=200${tipo ? `&tipo=${tipo}` : ''}${qBusqueda}${qTienda(tiendaId)}`)
       .then(setRows).catch((e) => toast.error(e.message));
-  }, [tipo, tiendaId]);
+  }, [tipo, busquedaDebounced, tiendaId]);
 
   const etiquetaTipo = {
     entrada: '📥 Entrada', venta: '🛒 Venta', ajuste: '⚙️ Ajuste',
@@ -202,6 +210,11 @@ function Kardex({ tiendaId }) {
   return (
     <>
       <div className="filtros">
+        <input
+          placeholder="Buscar por nombre de prenda…"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+        />
         <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
           <option value="">Todos los movimientos</option>
           <option value="entrada">Entradas</option>
